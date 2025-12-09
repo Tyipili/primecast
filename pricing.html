@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pricing - PrimeCast</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav-bar">
+        <div class="container">
+            <div class="nav-content">
+                <div class="logo">
+                    <svg width="50" height="50" viewBox="0 0 50 50">
+                        <defs>
+                            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#00E5FF;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#0091EA;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M 10 10 L 10 40 L 15 40 L 15 15 L 40 15 L 40 10 Z" fill="url(#logoGradient)" opacity="0.3"/>
+                        <path d="M 15 15 L 15 45 L 45 45 L 45 15 Z" fill="none" stroke="url(#logoGradient)" stroke-width="2"/>
+                        <path d="M 22 22 L 22 38 L 36 30 Z" fill="url(#logoGradient)"/>
+                    </svg>
+                    <span class="logo-text">PrimeCast</span>
+                </div>
+                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu" id="navMenu">
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="channels.html">Channels</a></li>
+                    <li><a href="movies.html">Movies & Shows</a></li>
+                    <li><a href="pricing.html" class="active">Pricing</a></li>
+                    <li><a href="faq.html">FAQ</a></li>
+                    <li><a href="contact.html">Contact</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Pricing Hero -->
+    <section class="pricing-hero">
+        <div class="container">
+            <h1 class="section-title">Choose Your Plan</h1>
+            <p style="text-align: center; color: var(--text-gray); font-size: 1.2rem; max-width: 600px; margin: 0 auto;">
+                Flexible pricing options to suit your streaming needs. All plans include full access to our premium content.
+            </p>
+        </div>
+    </section>
+
+    <!-- Pricing Cards -->
+    <section class="pricing-grid-section">
+        <div class="container">
+            <div class="pricing-grid">
+                <!-- 1-Month Plan -->
+                <div class="pricing-card">
+                    <div class="plan-name">Monthly</div>
+                    <div class="plan-price">$25</div>
+                    <div class="plan-period">per month</div>
+                    <ul class="plan-features">
+                        <li>1000+ Live TV Channels</li>
+                        <li>Unlimited Movies & Shows</li>
+                        <li>4K Ultra HD Quality</li>
+                        <li>Multi-Device Support</li>
+                        <li>No Buffering</li>
+                        <li>24/7 Customer Support</li>
+                        <li>Cancel Anytime</li>
+                    </ul>
+                    <a href="checkout.html?plan=1month" class="btn btn-primary">Get Started</a>
+                </div>
+
+                <!-- 3-Month Plan -->
+                <div class="pricing-card featured">
+                    <span class="plan-badge">MOST POPULAR</span>
+                    <div class="plan-name">Quarterly</div>
+                    <div class="plan-price">$60</div>
+                    <div class="plan-period">3 months / $20 per month</div>
+                    <ul class="plan-features">
+                        <li>1000+ Live TV Channels</li>
+                        <li>Unlimited Movies & Shows</li>
+                        <li>4K Ultra HD Quality</li>
+                        <li>Multi-Device Support</li>
+                        <li>No Buffering</li>
+                        <li>24/7 Customer Support</li>
+                        <li>Save $15 vs Monthly</li>
+                        <li>Priority Activation</li>
+                    </ul>
+                    <a href="checkout.html?plan=3month" class="btn btn-primary">Get Started</a>
+                </div>
+
+                <!-- 12-Month Plan -->
+                <div class="pricing-card">
+                    <span class="plan-badge">BEST VALUE</span>
+                    <div class="plan-name">Annual</div>
+                    <div class="plan-price">$150</div>
+                    <div class="plan-period">12 months / $12.50 per month</div>
+                    <ul class="plan-features">
+                        <li>1000+ Live TV Channels</li>
+                        <li>Unlimited Movies & Shows</li>
+                        <li>4K Ultra HD Quality</li>
+                        <li>Multi-Device Support</li>
+                        <li>No Buffering</li>
+                        <li>24/7 Customer Support</li>
+                        <li>Save $150 vs Monthly</li>
+                        <li>Priority Activation</li>
+                        <li>Exclusive Content Access</li>
+                    </ul>
+                    <a href="checkout.html?plan=12month" class="btn btn-primary">Get Started</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Comparison -->
+    <section class="features" style="padding-top: 60px;">
+        <div class="container">
+            <h2 class="section-title">All Plans Include</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🌍</div>
+                    <h3>Global Content</h3>
+                    <p>Access channels and content from around the world</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📲</div>
+                    <h3>Easy Setup</h3>
+                    <p>Simple installation on all your devices</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💎</div>
+                    <h3>Premium Quality</h3>
+                    <p>HD and 4K streaming on supported content</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+        <div class="container">
+            <h2>Still Have Questions?</h2>
+            <p>Check our FAQ or contact us for more information</p>
+            <div class="hero-buttons">
+                <a href="faq.html" class="btn btn-secondary">View FAQ</a>
+                <a href="contact.html" class="btn btn-secondary">Contact Us</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <div class="logo">
+                        <svg width="40" height="40" viewBox="0 0 50 50">
+                            <defs>
+                                <linearGradient id="footerLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#00E5FF;stop-opacity:1" />
+                                    <stop offset="100%" style="stop-color:#0091EA;stop-opacity:1" />
+                                </linearGradient>
+                            </defs>
+                            <path d="M 10 10 L 10 40 L 15 40 L 15 15 L 40 15 L 40 10 Z" fill="url(#footerLogoGradient)" opacity="0.3"/>
+                            <path d="M 15 15 L 15 45 L 45 45 L 45 15 Z" fill="none" stroke="url(#footerLogoGradient)" stroke-width="2"/>
+                            <path d="M 22 22 L 22 38 L 36 30 Z" fill="url(#footerLogoGradient)"/>
+                        </svg>
+                        <span class="logo-text">PrimeCast</span>
+                    </div>
+                    <p>Premium IPTV Streaming Service</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="channels.html">Channels</a></li>
+                        <li><a href="movies.html">Movies & Shows</a></li>
+                        <li><a href="pricing.html">Pricing</a></li>
+                        <li><a href="faq.html">FAQ</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="contact.html">Contact Us</a></li>
+                        <li><a href="mailto:info@primecast.world">info@primecast.world</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 PrimeCast. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>

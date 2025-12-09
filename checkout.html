@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - PrimeCast</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- PayPal SDK -->
+    <script src="https://www.paypal.com/sdk/js?client-id=YOUR_CLIENT_ID_HERE&currency=USD"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav-bar">
+        <div class="container">
+            <div class="nav-content">
+                <div class="logo">
+                    <svg width="50" height="50" viewBox="0 0 50 50">
+                        <defs>
+                            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#00E5FF;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#0091EA;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M 10 10 L 10 40 L 15 40 L 15 15 L 40 15 L 40 10 Z" fill="url(#logoGradient)" opacity="0.3"/>
+                        <path d="M 15 15 L 15 45 L 45 45 L 45 15 Z" fill="none" stroke="url(#logoGradient)" stroke-width="2"/>
+                        <path d="M 22 22 L 22 38 L 36 30 Z" fill="url(#logoGradient)"/>
+                    </svg>
+                    <span class="logo-text">PrimeCast</span>
+                </div>
+                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu" id="navMenu">
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="channels.html">Channels</a></li>
+                    <li><a href="movies.html">Movies & Shows</a></li>
+                    <li><a href="pricing.html">Pricing</a></li>
+                    <li><a href="faq.html">FAQ</a></li>
+                    <li><a href="contact.html">Contact</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Checkout Container -->
+    <div class="checkout-container">
+        <h1 style="color: var(--gold); text-align: center; margin-bottom: 10px;">Complete Your Order</h1>
+        <p style="text-align: center; color: var(--text-gray); margin-bottom: 40px;">
+            Your order reference: <span class="reference-display" id="orderReference"></span>
+        </p>
+
+        <!-- Important Notice -->
+        <div class="info-box" style="background: rgba(196, 155, 42, 0.1); border-color: var(--gold);">
+            <h3 style="color: var(--gold); margin-bottom: 15px;">📧 Login Information</h3>
+            <p>Your login information will be emailed to you after successful payment.</p>
+            <p>Our activation team typically processes orders within 1-4 hours.</p>
+        </div>
+
+        <!-- Order Summary -->
+        <div class="checkout-section">
+            <h2>Order Summary</h2>
+            <div class="order-summary" id="orderSummary">
+                <div class="summary-row">
+                    <span>Plan:</span>
+                    <span id="planName">Loading...</span>
+                </div>
+                <div class="summary-row">
+                    <span>Duration:</span>
+                    <span id="planDuration">Loading...</span>
+                </div>
+                <div class="summary-row total">
+                    <span>Total:</span>
+                    <span id="planPrice">$0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Options -->
+        <div class="checkout-section">
+            <h2>Select Payment Method</h2>
+            
+            <!-- PayPal Option -->
+            <div class="payment-method">
+                <h3>💳 Pay with PayPal or Credit Card</h3>
+                <p style="color: var(--text-gray); margin-bottom: 20px;">
+                    Secure payment processing through PayPal. You don't need a PayPal account to use your credit card.
+                </p>
+                <div id="paypal-button-container"></div>
+            </div>
+
+            <!-- E-transfer Option -->
+            <div class="payment-method">
+                <h3>🏦 Pay with Interac E-transfer (Canada)</h3>
+                <p style="color: var(--text-gray); margin-bottom: 20px;">
+                    Send e-transfer to complete your order. Include your order reference in the message.
+                </p>
+                
+                <div class="info-box">
+                    <p><strong>E-transfer Details:</strong></p>
+                    <div class="email-copy">
+                        <input type="text" id="etransferEmail" value="info@primecast.world" readonly>
+                        <button class="btn-copy" onclick="copyEmail()" id="copyEmailBtn">Copy Email</button>
+                    </div>
+                    <p style="margin-top: 15px;"><strong>Important:</strong> Please include your order reference number in the e-transfer message.</p>
+                </div>
+
+                <form id="etransferForm" style="margin-top: 25px;">
+                    <div class="form-group">
+                        <label>Your Email Address *</label>
+                        <input type="email" id="customerEmail" placeholder="your@email.com" required>
+                    </div>
+                    <input type="hidden" id="selectedPlan" value="">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        I've Sent the E-transfer
+                    </button>
+                    <p style="text-align: center; color: var(--text-gray); margin-top: 15px; font-size: 14px;">
+                        You'll receive a confirmation email once we verify your payment
+                    </p>
+                </form>
+            </div>
+        </div>
+
+        <!-- Security Notice -->
+        <div class="info-box" style="margin-top: 30px;">
+            <p style="text-align: center;">🔒 Your payment information is secure and encrypted</p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <div class="logo">
+                        <svg width="40" height="40" viewBox="0 0 50 50">
+                            <defs>
+                                <linearGradient id="footerLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#00E5FF;stop-opacity:1" />
+                                    <stop offset="100%" style="stop-color:#0091EA;stop-opacity:1" />
+                                </linearGradient>
+                            </defs>
+                            <path d="M 10 10 L 10 40 L 15 40 L 15 15 L 40 15 L 40 10 Z" fill="url(#footerLogoGradient)" opacity="0.3"/>
+                            <path d="M 15 15 L 15 45 L 45 45 L 45 15 Z" fill="none" stroke="url(#footerLogoGradient)" stroke-width="2"/>
+                            <path d="M 22 22 L 22 38 L 36 30 Z" fill="url(#footerLogoGradient)"/>
+                        </svg>
+                        <span class="logo-text">PrimeCast</span>
+                    </div>
+                    <p>Premium IPTV Streaming Service</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="channels.html">Channels</a></li>
+                        <li><a href="movies.html">Movies & Shows</a></li>
+                        <li><a href="pricing.html">Pricing</a></li>
+                        <li><a href="faq.html">FAQ</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="contact.html">Contact Us</a></li>
+                        <li><a href="mailto:info@primecast.world">info@primecast.world</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 PrimeCast. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Get plan from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const plan = urlParams.get('plan') || '1month';
+        
+        const plans = {
+            '1month': { name: '1-Month Plan', duration: '1 Month', price: '$25', value: '25.00' },
+            '3month': { name: '3-Month Plan', duration: '3 Months', price: '$60', value: '60.00' },
+            '12month': { name: '12-Month Plan', duration: '12 Months', price: '$150', value: '150.00' }
+        };
+        
+        // Update order summary
+        document.getElementById('planName').textContent = plans[plan].name;
+        document.getElementById('planDuration').textContent = plans[plan].duration;
+        document.getElementById('planPrice').textContent = plans[plan].price;
+        document.getElementById('selectedPlan').value = plans[plan].name;
+        
+        // Initialize PayPal button for selected plan
+        if (window.paypal) {
+            paypal.Buttons({
+                createOrder: function(data, actions) {
+                    return actions.order.create({
+                        purchase_units: [{
+                            description: `PrimeCast ${plans[plan].name}`,
+                            amount: {
+                                value: plans[plan].value
+                            }
+                        }]
+                    });
+                },
+                onApprove: async function(data, actions) {
+                    const order = await actions.order.capture();
+                    const email = order.payer.email_address;
+                    const reference = sessionStorage.getItem('orderReference');
+                    
+                    try {
+                        const response = await fetch('php/activate.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                email: email,
+                                plan: plans[plan].name,
+                                reference: reference,
+                                transaction_id: order.id,
+                                amount: plans[plan].value,
+                                payment_method: 'paypal'
+                            })
+                        });
+                        
+                        window.location.href = 'thankyou.html';
+                    } catch (error) {
+                        alert('Payment successful! You will receive a confirmation email shortly.');
+                        setTimeout(() => {
+                            window.location.href = 'thankyou.html';
+                        }, 2000);
+                    }
+                },
+                onError: function(err) {
+                    console.error('PayPal Error:', err);
+                    alert('There was an error processing your payment. Please try again or use E-transfer.');
+                }
+            }).render('#paypal-button-container');
+        }
+    </script>
+    <script src="js/main.js"></script>
+</body>
+</html>
