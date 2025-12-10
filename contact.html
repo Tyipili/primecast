@@ -7,22 +7,12 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <!-- Navigation -->
     <nav class="nav-bar">
         <div class="container">
             <div class="nav-content">
                 <div class="logo">
-                    <svg width="50" height="50" viewBox="0 0 50 50">
-                        <defs>
-                            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" style="stop-color:#00E5FF;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#0091EA;stop-opacity:1" />
-                            </linearGradient>
-                        </defs>
-                        <path d="M 10 10 L 10 40 L 15 40 L 15 15 L 40 15 L 40 10 Z" fill="url(#logoGradient)" opacity="0.3"/>
-                        <path d="M 15 15 L 15 45 L 45 45 L 45 15 Z" fill="none" stroke="url(#logoGradient)" stroke-width="2"/>
-                        <path d="M 22 22 L 22 38 L 36 30 Z" fill="url(#logoGradient)"/>
-                    </svg>
-                    <span class="logo-text">PrimeCast</span>
+                    <img src="images/logo.png" alt="PrimeCast Logo" style="height: 45px; width: auto;">
                 </div>
                 <button class="mobile-menu-btn" id="mobileMenuBtn">
                     <span></span>
@@ -30,12 +20,11 @@
                     <span></span>
                 </button>
                 <ul class="nav-menu" id="navMenu">
-                    <li><a href="index.html">Home</a></li>
+                    <li><a href="index.html" class="active">Home</a></li>
                     <li><a href="channels.html">Channels</a></li>
-                    <li><a href="movies.html">Movies & Shows</a></li>
                     <li><a href="pricing.html">Pricing</a></li>
                     <li><a href="faq.html">FAQ</a></li>
-                    <li><a href="contact.html" class="active">Contact</a></li>
+                    <li><a href="contact.html">Contact</a></li>
                 </ul>
             </div>
         </div>
@@ -140,4 +129,5 @@
 
     <script src="js/main.js"></script>
 </body>
+
 </html>
