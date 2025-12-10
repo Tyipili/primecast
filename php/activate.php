@@ -19,7 +19,8 @@ $email = isset($data['email']) ? filter_var($data['email'], FILTER_SANITIZE_EMAI
 $plan = isset($data['plan']) ? htmlspecialchars($data['plan']) : '';
 $reference = isset($data['reference']) ? htmlspecialchars($data['reference']) : '';
 $transaction_id = isset($data['transaction_id']) ? htmlspecialchars($data['transaction_id']) : 'N/A';
-$amount = isset($data['amount']) ? htmlspecialchars($data['amount']) : '0';
+$amount = isset($data['amount']) ? preg_replace('/[^0-9.]/', '', $data['amount']) : '0';
+$amount = $amount === '' ? '0' : number_format((float) $amount, 2, '.', '');
 $payment_method = isset($data['payment_method']) ? htmlspecialchars($data['payment_method']) : 'unknown';
 
 // Validate email
@@ -42,10 +43,19 @@ $logEntry = sprintf(
     $payment_method
 );
 
-// Log to file
-$logFile = 'payment_log.txt';
+// Log to secured storage
+$storageDir = dirname(__DIR__) . '/storage';
+if (!is_dir($storageDir)) {
+    mkdir($storageDir, 0750, true);
+}
+
+$logFile = $storageDir . '/payment_log.txt';
+$isNewLog = !file_exists($logFile);
+
 if (file_put_contents($logFile, $logEntry, FILE_APPEND | LOCK_EX) === false) {
     error_log("Failed to write to payment log");
+} elseif ($isNewLog) {
+    chmod($logFile, 0640);
 }
 
 // Send confirmation email
@@ -72,24 +82,3 @@ If you have any questions, please contact us at info@primecast.world
 Best regards,
 The PrimeCast Team
 ";
-
-$headers = "From: PrimeCast <info@primecast.world>\r\n";
-$headers .= "Reply-To: info@primecast.world\r\n";
-$headers .= "X-Mailer: PHP/" . phpversion();
-
-// Send email
-$emailSent = mail($to, $subject, $message, $headers);
-
-if (!$emailSent) {
-    error_log("Failed to send confirmation email to: $email");
-    // Still return success since payment was logged
-}
-
-// Return success response
-echo json_encode([
-    'status' => 'success',
-    'message' => 'Payment logged and confirmation email sent',
-    'email_sent' => $emailSent
-]);
-exit;
-?>
