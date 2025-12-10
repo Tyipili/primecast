@@ -451,6 +451,9 @@ body {
     text-align: center;
     transition: all 0.3s ease;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
 }
 
 .pricing-card.featured {
@@ -501,6 +504,7 @@ body {
     list-style: none;
     margin-bottom: 30px;
     text-align: left;
+    flex-grow: 1;
 }
 
 .plan-features li {
@@ -514,6 +518,11 @@ body {
     color: var(--gold);
     margin-right: 10px;
     font-weight: bold;
+}
+
+.pricing-card .btn {
+    margin-top: auto;
+    width: 100%;
 }
 
 /* Checkout Page */
