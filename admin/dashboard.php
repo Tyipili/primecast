@@ -1,4 +1,17 @@
 <?php
+// Harden session cookies on the dashboard as well
+$isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
+    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'httponly' => true,
+    'samesite' => 'Strict',
+    'secure' => $isSecure
+]);
+
 session_start();
 
 // Check if user is logged in
@@ -9,13 +22,26 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 
 // Handle logout
 if (isset($_GET['logout'])) {
+    $_SESSION = [];
+
+    if (ini_get('session.use_cookies')) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, [
+            'path' => $params['path'] ?? '/',
+            'domain' => $params['domain'] ?? '',
+            'secure' => $params['secure'],
+            'httponly' => $params['httponly'],
+            'samesite' => $params['samesite'] ?? 'Strict'
+        ]);
+    }
+
     session_destroy();
     header('Location: login.php');
     exit;
 }
 
 // Read payment log
-$logFile = '../php/payment_log.txt';
+$logFile = dirname(__DIR__) . '/storage/payment_log.txt';
 $payments = [];
 
 if (file_exists($logFile)) {
@@ -27,15 +53,16 @@ if (file_exists($logFile)) {
         
         // Parse log entry
         preg_match('/\[(.*?)\] Email: (.*?) \| Plan: (.*?) \| Reference: (.*?) \| Transaction: (.*?) \| Amount: \$(.*?) \| Method: (.*)/', $line, $matches);
-        
+
         if (count($matches) === 8) {
+            $amountValue = is_numeric($matches[6]) ? (float) $matches[6] : 0.0;
             $payments[] = [
                 'timestamp' => $matches[1],
                 'email' => $matches[2],
                 'plan' => $matches[3],
                 'reference' => $matches[4],
                 'transaction' => $matches[5],
-                'amount' => $matches[6],
+                'amount' => $amountValue,
                 'method' => $matches[7]
             ];
         }

@@ -20,12 +20,13 @@ primecast/
 │   └── main.js
 ├── php/
 │   ├── activate.php
-│   ├── contact.php
-│   └── payment_log.txt (auto-generated)
-└── admin/
-    ├── login.php
-    ├── dashboard.php
-    └── .htpasswd (auto-generated)
+│   └── contact.php
+├── admin/
+│   ├── login.php
+│   └── dashboard.php
+└── storage/
+    ├── admin_credentials.json (auto-generated)
+    └── payment_log.txt (auto-generated)
 ```
 
 ## 🚀 Installation Instructions
@@ -36,9 +37,10 @@ Upload all files to your web hosting server via FTP or cPanel File Manager.
 ### 2. Set Permissions
 ```bash
 chmod 755 php/
-chmod 666 php/payment_log.txt (will be created automatically)
 chmod 755 admin/
-chmod 600 admin/.htpasswd (will be created automatically)
+chmod 750 storage/
+chmod 640 storage/payment_log.txt (will be created automatically)
+chmod 640 storage/admin_credentials.json (will be created automatically)
 ```
 
 ### 3. PayPal Integration Setup
@@ -76,28 +78,16 @@ mail('your@email.com', 'Test', 'This is a test email');
 
 ### 5. Admin Dashboard Access
 
-**Default Login Credentials:**
-- Username: `admin`
-- Password: `primecast2024`
+**Admin Access Setup (Required):**
 
-**Access URL:**
+Set environment variables before using the dashboard:
+
 ```
-https://yourdomain.com/admin/login.php
+ADMIN_USERNAME=<secure_username>
+ADMIN_PASSWORD=<strong_password>
 ```
 
-**IMPORTANT: Change Default Password**
-
-Edit `admin/.htpasswd` after first login or create it manually:
-
-```php
-<?php
-$credentials = [
-    'username' => 'admin',
-    'password' => password_hash('YOUR_NEW_PASSWORD', PASSWORD_DEFAULT)
-];
-file_put_contents('.htpasswd', json_encode($credentials));
-?>
-```
+On first login, the app will store hashed credentials in `storage/admin_credentials.json` (protected by `.htaccess`).
 
 ### 6. Domain Configuration
 
