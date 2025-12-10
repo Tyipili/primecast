@@ -1,4 +1,17 @@
 <?php
+// Helper to detect secure requests across direct and proxied deployments
+$isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
+    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+
+// Harden session cookies
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'httponly' => true,
+    'samesite' => 'Strict',
+    'secure' => $isSecure
+]);
 session_start();
 
 // Check if already logged in
@@ -7,39 +20,80 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
     exit;
 }
 
+// Storage locations
+$storageDir = dirname(__DIR__) . '/storage';
+$credentialsFile = $storageDir . '/admin_credentials.json';
+
+// Ensure storage directory exists
+if (!is_dir($storageDir)) {
+    if (!mkdir($storageDir, 0750, true) && !is_dir($storageDir)) {
+        $error = 'Unable to create storage directory.';
+    }
+}
+
 $error = '';
+$credentials = null;
+$envUser = getenv('ADMIN_USERNAME');
+$envPass = getenv('ADMIN_PASSWORD');
+
+// Load credentials from secure location or bootstrap from env vars
+if (is_readable($credentialsFile)) {
+    $contents = file_get_contents($credentialsFile);
+
+    if ($contents === false) {
+        $error = 'Unable to read admin credentials file.';
+    } else {
+        $decoded = json_decode($contents, true);
+
+        if (
+            is_array($decoded) &&
+            isset($decoded['username'], $decoded['password']) &&
+            trim($decoded['username']) !== '' &&
+            trim($decoded['password']) !== '' &&
+            json_last_error() === JSON_ERROR_NONE
+        ) {
+            $credentials = [
+                'username' => trim($decoded['username']),
+                'password' => $decoded['password']
+            ];
+        } else {
+            $error = 'Admin credentials file is invalid. Please recreate it with ADMIN_USERNAME and ADMIN_PASSWORD.';
+        }
+    }
+} elseif ($envUser && $envPass && trim($envUser) !== '' && trim($envPass) !== '') {
+    $credentials = [
+        'username' => trim($envUser),
+        'password' => password_hash(trim($envPass), PASSWORD_DEFAULT)
+    ];
+
+    if (file_put_contents($credentialsFile, json_encode($credentials, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX) === false) {
+        $error = 'Failed to write admin credentials file. Check directory permissions.';
+    } else {
+        chmod($credentialsFile, 0640);
+    }
+} else {
+    $error = 'Admin credentials are not configured. Set ADMIN_USERNAME and ADMIN_PASSWORD in the environment.';
+}
 
 // Handle login form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $credentials) {
     $username = isset($_POST['username']) ? trim($_POST['username']) : '';
     $password = isset($_POST['password']) ? trim($_POST['password']) : '';
-    
-    // Load credentials from encrypted file
-    $credentialsFile = '.htpasswd';
-    
-    if (file_exists($credentialsFile)) {
-        $credentials = json_decode(file_get_contents($credentialsFile), true);
-        
-        if ($credentials && 
-            $username === $credentials['username'] && 
-            password_verify($password, $credentials['password'])) {
-            
-            $_SESSION['admin_logged_in'] = true;
-            $_SESSION['admin_username'] = $username;
-            header('Location: dashboard.php');
-            exit;
-        } else {
-            $error = 'Invalid username or password';
-        }
+
+    if ($credentials &&
+        $username === $credentials['username'] &&
+        password_verify($password, $credentials['password'])) {
+
+        session_regenerate_id(true);
+        $_SESSION['admin_logged_in'] = true;
+        $_SESSION['admin_username'] = $username;
+        header('Location: dashboard.php');
+        exit;
     } else {
-        // Create default credentials if file doesn't exist
-        $defaultCredentials = [
-            'username' => 'admin',
-            'password' => password_hash('primecast2024', PASSWORD_DEFAULT)
-        ];
-        file_put_contents($credentialsFile, json_encode($defaultCredentials));
-        $error = 'Default credentials created. Username: admin, Password: primecast2024';
+        $error = 'Invalid username or password';
     }
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && !$credentials && !$error) {
+    $error = 'Admin credentials are not available. Please contact the server administrator.';
 }
 ?>
 <!DOCTYPE html>
@@ -87,7 +141,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </form>
             
             <p style="text-align: center; margin-top: 20px; font-size: 14px; color: var(--text-gray);">
-                Default credentials: admin / primecast2024
+                Configure admin credentials via environment variables.<br>
+                Contact your server administrator if you need access.
             </p>
         </div>
     </div>
