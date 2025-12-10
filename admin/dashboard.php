@@ -1,4 +1,17 @@
 <?php
+// Harden session cookies on the dashboard as well
+$isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
+    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'httponly' => true,
+    'samesite' => 'Strict',
+    'secure' => $isSecure
+]);
+
 session_start();
 
 // Check if user is logged in
@@ -9,40 +22,65 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 
 // Handle logout
 if (isset($_GET['logout'])) {
+    $_SESSION = [];
+
+    if (ini_get('session.use_cookies')) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, [
+            'path' => $params['path'] ?? '/',
+            'domain' => $params['domain'] ?? '',
+            'secure' => $params['secure'],
+            'httponly' => $params['httponly'],
+            'samesite' => $params['samesite'] ?? 'Strict'
+        ]);
+    }
+
     session_destroy();
     header('Location: login.php');
     exit;
 }
 
 // Read payment log
-$logFile = '../php/payment_log.txt';
+$logFile = dirname(__DIR__) . '/storage/payment_log.txt';
 $payments = [];
+$logError = '';
 
-if (file_exists($logFile)) {
+if (!file_exists($logFile)) {
+    $logError = 'Payment log not found. Purchases will appear here once recorded.';
+} elseif (!is_readable($logFile)) {
+    $logError = 'Payment log exists but is not readable. Check file permissions.';
+} elseif (filesize($logFile) > 0) {
     $logContent = file_get_contents($logFile);
-    $lines = explode("\n", trim($logContent));
-    
-    foreach ($lines as $line) {
-        if (empty($line)) continue;
-        
-        // Parse log entry
-        preg_match('/\[(.*?)\] Email: (.*?) \| Plan: (.*?) \| Reference: (.*?) \| Transaction: (.*?) \| Amount: \$(.*?) \| Method: (.*)/', $line, $matches);
-        
-        if (count($matches) === 8) {
-            $payments[] = [
-                'timestamp' => $matches[1],
-                'email' => $matches[2],
-                'plan' => $matches[3],
-                'reference' => $matches[4],
-                'transaction' => $matches[5],
-                'amount' => $matches[6],
-                'method' => $matches[7]
-            ];
+
+    if ($logContent === false) {
+        $logError = 'Unable to read payment log contents.';
+    } else {
+        $lines = explode("\n", trim($logContent));
+
+        foreach ($lines as $line) {
+            if ($line === '') {
+                continue;
+            }
+
+            // Parse log entry with anchored pattern to reduce malformed matches
+            preg_match('/^\[(.*?)\]\s+Email:\s+(.*?)\s+\|\s+Plan:\s+(.*?)\s+\|\s+Reference:\s+(.*?)\s+\|\s+Transaction:\s+(.*?)\s+\|\s+Amount:\s+\$(.*?)\s+\|\s+Method:\s+(.*)$/', $line, $matches);
+
+            if (count($matches) === 8 && is_numeric($matches[6])) {
+                $payments[] = [
+                    'timestamp' => $matches[1],
+                    'email' => $matches[2],
+                    'plan' => $matches[3],
+                    'reference' => $matches[4],
+                    'transaction' => $matches[5],
+                    'amount' => (float) $matches[6],
+                    'method' => $matches[7]
+                ];
+            }
         }
+
+        // Reverse to show newest first
+        $payments = array_reverse($payments);
     }
-    
-    // Reverse to show newest first
-    $payments = array_reverse($payments);
 }
 
 // Calculate statistics
@@ -69,56 +107,7 @@ foreach ($payments as $payment) {
     <style>
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
-        }
-        .stat-card {
-            background: rgba(26, 26, 26, 0.8);
-            border: 1px solid rgba(0, 229, 255, 0.2);
-            border-radius: 12px;
-            padding: 25px;
-            text-align: center;
-        }
-        .stat-value {
-            font-size: 2.5rem;
-            color: var(--gold);
-            font-weight: 700;
-            margin: 10px 0;
-        }
-        .stat-label {
-            color: var(--text-gray);
-            font-size: 1rem;
-        }
-        .refresh-btn {
-            background: var(--neon-blue);
-            color: var(--dark-bg);
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        .refresh-btn:hover {
-            background: var(--gold);
-        }
-    </style>
-</head>
-<body>
-    <div class="admin-container">
-        <div class="admin-header">
-            <div>
-                <h1>PrimeCast Admin Dashboard</h1>
-                <p style="color: var(--text-gray);">Welcome, <?php echo htmlspecialchars($_SESSION['admin_username']); ?></p>
-            </div>
-            <div>
-                <button onclick="location.reload()" class="refresh-btn">Refresh</button>
-                <button onclick="window.location.href='?logout=1'" class="logout-btn">Logout</button>
-            </div>
-        </div>
-
-        <!-- Statistics Cards -->
+@@ -122,55 +160,59 @@ foreach ($payments as $payment) {
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-label">Total Payments</div>
@@ -144,7 +133,11 @@ foreach ($payments as $payment) {
                 <h2 style="color: var(--gold); margin: 0;">Recent Payments</h2>
             </div>
             
-            <?php if (empty($payments)): ?>
+            <?php if ($logError): ?>
+                <div style="padding: 40px; text-align: center; color: var(--text-gray);">
+                    <p><?php echo htmlspecialchars($logError); ?></p>
+                </div>
+            <?php elseif (empty($payments)): ?>
                 <div style="padding: 40px; text-align: center; color: var(--text-gray);">
                     <p>No payments recorded yet.</p>
                 </div>
@@ -174,15 +167,3 @@ foreach ($payments as $payment) {
                                 <td style="color: var(--gold); font-weight: 600;">
                                     $<?php echo htmlspecialchars($payment['amount']); ?>
                                 </td>
-                                <td style="text-transform: uppercase;">
-                                    <?php echo htmlspecialchars($payment['method']); ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            <?php endif; ?>
-        </div>
-    </div>
-</body>
-</html>
