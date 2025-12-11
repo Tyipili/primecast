@@ -1,18 +1,23 @@
 <?php
-// Harden session cookies on the dashboard as well
-$isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-    || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
-    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+/**
+ * PrimeCast Admin Dashboard
+ * Secure admin panel for viewing payments and statistics
+ */
+
+require_once __DIR__ . '/../php/functions.php';
+
+// Configure secure session cookies
+$isSecure = isSecure();
 
 $cookieOptions = [
     'lifetime' => 0,
     'path' => '/',
+    'domain' => '',
+    'secure' => $isSecure,
     'httponly' => true,
-    'samesite' => 'Strict',
-    'secure' => $isSecure
+    'samesite' => 'Strict'
 ];
 
-// Support older PHP versions that don't accept array parameters for session_set_cookie_params
 if (PHP_VERSION_ID >= 70300) {
     session_set_cookie_params($cookieOptions);
 } else {
@@ -20,7 +25,7 @@ if (PHP_VERSION_ID >= 70300) {
     session_set_cookie_params(
         $cookieOptions['lifetime'],
         $path,
-        '',
+        $cookieOptions['domain'],
         $cookieOptions['secure'],
         $cookieOptions['httponly']
     );
@@ -28,77 +33,82 @@ if (PHP_VERSION_ID >= 70300) {
 
 session_start();
 
-// Check if user is logged in
-if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
-    header('Location: login.php');
-    exit;
-}
+// Require admin authentication (includes timeout check)
+requireAdmin();
 
 // Handle logout
 if (isset($_GET['logout'])) {
+    logSecurityEvent('ADMIN_LOGOUT', [
+        'username' => $_SESSION['admin_username'] ?? 'unknown',
+        'session_duration' => isset($_SESSION['login_time']) ? (time() - strtotime($_SESSION['login_time'])) : 0
+    ]);
+    
     $_SESSION = [];
-
+    
     if (ini_get('session.use_cookies')) {
         $params = session_get_cookie_params();
-
+        
         if (PHP_VERSION_ID >= 70300) {
             setcookie(session_name(), '', [
                 'expires' => time() - 42000,
-                'path' => $params['path'] ?? $cookieOptions['path'],
+                'path' => $params['path'] ?? '/',
                 'domain' => $params['domain'] ?? '',
-                'secure' => $params['secure'] ?? $cookieOptions['secure'],
-                'httponly' => $params['httponly'] ?? $cookieOptions['httponly'],
-                'samesite' => $params['samesite'] ?? $cookieOptions['samesite']
+                'secure' => $params['secure'] ?? $isSecure,
+                'httponly' => $params['httponly'] ?? true,
+                'samesite' => $params['samesite'] ?? 'Strict'
             ]);
         } else {
-            $path = ($params['path'] ?? $cookieOptions['path']) . '; samesite=' . ($params['samesite'] ?? $cookieOptions['samesite']);
+            $path = ($params['path'] ?? '/') . '; samesite=' . ($params['samesite'] ?? 'Strict');
             setcookie(
                 session_name(),
                 '',
                 time() - 42000,
                 $path,
-                '',
-                $params['secure'] ?? $cookieOptions['secure'],
-                $params['httponly'] ?? $cookieOptions['httponly']
+                $params['domain'] ?? '',
+                $params['secure'] ?? $isSecure,
+                $params['httponly'] ?? true
             );
         }
     }
-
+    
     session_destroy();
     header('Location: login.php');
     exit;
 }
 
 // Read payment log
-$logFile = dirname(__DIR__) . '/storage/payment_log.txt';
+$logFile = STORAGE_PATH . '/payment_log.txt';
 $payments = [];
 $logError = '';
 
 if (!file_exists($logFile)) {
-    $logError = 'Payment log not found. Purchases will appear here once recorded.';
+    $logError = 'No payment log found. Payments will appear here once customers make purchases.';
 } elseif (!is_readable($logFile)) {
-    $logError = 'Payment log exists but is not readable. Check file permissions.';
+    $logError = 'Payment log exists but cannot be read. Check file permissions.';
+    error_log("Payment log not readable: $logFile");
 } elseif (filesize($logFile) > 0) {
     $logContent = file_get_contents($logFile);
-
+    
     if ($logContent === false) {
         $logError = 'Unable to read payment log contents.';
+        error_log("Failed to read payment log: $logFile");
     } else {
         $lines = explode("\n", trim($logContent));
-
+        
         foreach ($lines as $line) {
             if ($line === '') {
                 continue;
             }
-
-            // Parse log entry with anchored pattern to reduce malformed matches
+            
+            // Parse log entry
+            // Format: [timestamp] Email: xxx | Plan: xxx | Reference: xxx | Transaction: xxx | Amount: $xxx | Method: xxx | Status: xxx
             preg_match(
-                '/^\[(.*?)\]\s+Email:\s+(.*?)\s+\|\s+Plan:\s+(.*?)\s+\|\s+Reference:\s+(.*?)\s+\|\s+Transaction:\s+(.*?)\s+\|\s+Amount:\s+\$(.*?)\s+\|\s+Method:\s+(.*)$/',
+                '/^\[(.*?)\]\s+Email:\s+(.*?)\s+\|\s+Plan:\s+(.*?)\s+\|\s+Reference:\s+(.*?)\s+\|\s+Transaction:\s+(.*?)\s+\|\s+Amount:\s+\$(.*?)\s+\|\s+Method:\s+(.*?)(?:\s+\|\s+Status:\s+(.*))?$/',
                 $line,
                 $matches
             );
-
-            if (count($matches) === 8 && is_numeric($matches[6])) {
+            
+            if (count($matches) >= 8) {
                 $payments[] = [
                     'timestamp' => $matches[1],
                     'email' => $matches[2],
@@ -106,11 +116,12 @@ if (!file_exists($logFile)) {
                     'reference' => $matches[4],
                     'transaction' => $matches[5],
                     'amount' => (float) $matches[6],
-                    'method' => $matches[7]
+                    'method' => $matches[7],
+                    'status' => $matches[8] ?? 'completed'
                 ];
             }
         }
-
+        
         // Reverse to show newest first
         $payments = array_reverse($payments);
     }
@@ -129,25 +140,50 @@ foreach ($payments as $payment) {
         $todayRevenue += floatval($payment['amount']);
     }
 }
+
+// Plan breakdown
+$planCounts = ['basic' => 0, 'standard' => 0, 'premium' => 0];
+foreach ($payments as $payment) {
+    $plan = strtolower($payment['plan']);
+    if (isset($planCounts[$plan])) {
+        $planCounts[$plan]++;
+    }
+}
+
+// Session info for display
+$sessionDuration = isset($_SESSION['last_activity']) 
+    ? (time() - $_SESSION['last_activity']) 
+    : 0;
+$remainingTime = SESSION_TIMEOUT - $sessionDuration;
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
     <title>Admin Dashboard - PrimeCast</title>
     <link rel="stylesheet" href="../css/style.css">
     <style>
         :root {
             --card-surface: rgba(26, 26, 26, 0.9);
             --border-soft: rgba(0, 229, 255, 0.2);
+            --gold: #C49B2A;
+            --neon-blue: #00E5FF;
+            --dark-bg: #0a0a0a;
+            --text-gray: #b0b0b0;
         }
+        
         body {
             background: radial-gradient(circle at 20% 20%, rgba(0, 229, 255, 0.08), transparent 35%),
                 radial-gradient(circle at 80% 0%, rgba(196, 155, 42, 0.1), transparent 30%),
                 var(--dark-bg);
             color: #fff;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         }
+        
         .admin-page-bg {
             position: fixed;
             inset: 0;
@@ -155,47 +191,15 @@ foreach ($payments as $payment) {
             filter: blur(60px);
             z-index: 0;
         }
+        
         .admin-container {
             position: relative;
             z-index: 1;
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 40px 20px 80px;
         }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
-        }
-        .stat-card {
-            background: var(--card-surface);
-            border: 1px solid var(--border-soft);
-            border-radius: 12px;
-            padding: 25px;
-            text-align: center;
-        }
-        .stat-value {
-            font-size: 2.5rem;
-            color: var(--gold);
-            font-weight: 700;
-            margin: 10px 0;
-        }
-        .stat-label {
-            color: var(--text-gray);
-            font-size: 1rem;
-        }
-        .eyebrow {
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            font-size: 0.85rem;
-            color: var(--neon-blue);
-            margin-bottom: 8px;
-        }
-        .welcome {
-            color: var(--text-gray);
-            margin-top: 6px;
-        }
+        
         .admin-header {
             background: var(--card-surface);
             padding: 30px;
@@ -206,34 +210,103 @@ foreach ($payments as $payment) {
             justify-content: space-between;
             align-items: center;
             gap: 20px;
+            flex-wrap: wrap;
         }
+        
         .admin-header h1 {
             color: var(--gold);
             margin: 0;
+            font-size: 2rem;
         }
-        .admin-layout {
-            display: flex;
-            flex-direction: column;
-            gap: 30px;
+        
+        .eyebrow {
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.85rem;
+            color: var(--neon-blue);
+            margin-bottom: 8px;
         }
+        
+        .welcome {
+            color: var(--text-gray);
+            margin-top: 6px;
+            font-size: 0.9rem;
+        }
+        
         .actions {
             display: flex;
             gap: 10px;
             align-items: center;
         }
-        .refresh-btn {
-            background: var(--neon-blue);
-            color: var(--dark-bg);
+        
+        .btn {
             padding: 10px 20px;
             border: none;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
             transition: all 0.3s ease;
+            font-size: 0.9rem;
         }
+        
+        .refresh-btn {
+            background: var(--neon-blue);
+            color: var(--dark-bg);
+        }
+        
         .refresh-btn:hover {
             background: var(--gold);
         }
+        
+        .logout-btn {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff6b6b;
+            border: 1px solid rgba(255, 0, 0, 0.3);
+        }
+        
+        .logout-btn:hover {
+            background: rgba(255, 0, 0, 0.3);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .stat-card {
+            background: var(--card-surface);
+            border: 1px solid var(--border-soft);
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            color: var(--gold);
+            font-weight: 700;
+            margin: 10px 0;
+        }
+        
+        .stat-label {
+            color: var(--text-gray);
+            font-size: 1rem;
+        }
+        
+        .payments-table {
+            background: var(--card-surface);
+            border-radius: 16px;
+            border: 1px solid var(--border-soft);
+            overflow: hidden;
+        }
+        
         .table-heading {
             display: flex;
             justify-content: space-between;
@@ -241,14 +314,12 @@ foreach ($payments as $payment) {
             padding: 20px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
+        
         .table-heading h2 {
             color: var(--gold);
             margin: 4px 0 0;
         }
-        .table-meta {
-            display: flex;
-            gap: 10px;
-        }
+        
         .badge {
             display: inline-flex;
             align-items: center;
@@ -260,52 +331,91 @@ foreach ($payments as $payment) {
             font-size: 0.9rem;
             border: 1px solid rgba(0, 229, 255, 0.25);
         }
-        .payments-table {
-            background: var(--card-surface);
-            border-radius: 16px;
-            border: 1px solid var(--border-soft);
-            overflow: hidden;
-        }
+        
         .table-message {
-            padding: 32px;
+            padding: 40px;
             text-align: center;
             color: var(--text-gray);
         }
+        
         .table-warning {
             background: rgba(255, 165, 0, 0.08);
             color: #ffb347;
         }
-        .payments-table table {
+        
+        table {
             width: 100%;
             border-collapse: collapse;
         }
-        .payments-table th {
+        
+        th {
             background: rgba(196, 155, 42, 0.2);
             color: var(--gold);
             padding: 14px 16px;
             text-align: left;
             font-weight: 600;
+            font-size: 0.9rem;
         }
-        .payments-table td {
+        
+        td {
             padding: 14px 16px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.06);
             color: var(--text-gray);
+            font-size: 0.9rem;
         }
-        .payments-table tr:hover {
+        
+        tr:hover {
             background: rgba(0, 229, 255, 0.03);
         }
+        
         .mono {
-            font-family: monospace;
+            font-family: 'Courier New', monospace;
         }
+        
         .highlight {
             color: var(--neon-blue);
         }
+        
         .amount {
             color: var(--gold);
             font-weight: 700;
         }
+        
         .method {
             text-transform: uppercase;
+        }
+        
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .status-verified {
+            background: rgba(0, 255, 0, 0.2);
+            color: #00ff00;
+        }
+        
+        .session-timer {
+            font-size: 0.85rem;
+            color: var(--text-gray);
+            margin-left: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .admin-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            table {
+                font-size: 0.8rem;
+            }
+            
+            th, td {
+                padding: 10px 8px;
+            }
         }
     </style>
 </head>
@@ -316,15 +426,22 @@ foreach ($payments as $payment) {
             <div>
                 <p class="eyebrow">PrimeCast Control Panel</p>
                 <h1>Admin Dashboard</h1>
-                <p class="welcome">Welcome, <?php echo htmlspecialchars($_SESSION['admin_username']); ?></p>
+                <p class="welcome">
+                    Welcome, <?php echo htmlspecialchars($_SESSION['admin_username']); ?>
+                    <span class="session-timer" id="session-timer"></span>
+                </p>
             </div>
             <div class="actions">
-                <button onclick="location.reload()" class="refresh-btn" aria-label="Refresh dashboard">Refresh</button>
-                <button onclick="window.location.href='?logout=1'" class="logout-btn" aria-label="Log out">Logout</button>
+                <button onclick="location.reload()" class="btn refresh-btn" aria-label="Refresh dashboard">
+                    🔄 Refresh
+                </button>
+                <button onclick="if(confirm('Are you sure you want to logout?')) window.location.href='?logout=1'" class="btn logout-btn" aria-label="Log out">
+                    🚪 Logout
+                </button>
             </div>
         </header>
 
-        <main class="admin-layout" role="main">
+        <main role="main">
             <!-- Statistics Cards -->
             <section class="stats-grid" aria-label="Payment statistics">
                 <article class="stat-card">
@@ -352,8 +469,8 @@ foreach ($payments as $payment) {
                         <p class="eyebrow">Transactions</p>
                         <h2>Recent Payments</h2>
                     </div>
-                    <div class="table-meta">
-                        <span class="badge">Secure Area</span>
+                    <div>
+                        <span class="badge">🔒 Secure Area</span>
                     </div>
                 </div>
 
@@ -363,40 +480,79 @@ foreach ($payments as $payment) {
                     </div>
                 <?php elseif (empty($payments)): ?>
                     <div class="table-message">
-                        <p>No payments recorded yet.</p>
+                        <p>No payments recorded yet. New orders will appear here.</p>
                     </div>
                 <?php else: ?>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th scope="col">Date &amp; Time</th>
-                                <th scope="col">Email</th>
-                                <th scope="col">Plan</th>
-                                <th scope="col">Reference</th>
-                                <th scope="col">Transaction ID</th>
-                                <th scope="col">Amount</th>
-                                <th scope="col">Method</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($payments as $payment): ?>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead>
                                 <tr>
-                                    <td><?php echo htmlspecialchars($payment['timestamp']); ?></td>
-                                    <td><?php echo htmlspecialchars($payment['email']); ?></td>
-                                    <td><?php echo htmlspecialchars($payment['plan']); ?></td>
-                                    <td class="mono highlight">
-                                        <?php echo htmlspecialchars($payment['reference']); ?>
-                                    </td>
-                                    <td><?php echo htmlspecialchars($payment['transaction']); ?></td>
-                                    <td class="amount">$<?php echo htmlspecialchars($payment['amount']); ?></td>
-                                    <td class="method"><?php echo htmlspecialchars($payment['method']); ?></td>
+                                    <th scope="col">Date &amp; Time</th>
+                                    <th scope="col">Email</th>
+                                    <th scope="col">Plan</th>
+                                    <th scope="col">Reference</th>
+                                    <th scope="col">Transaction ID</th>
+                                    <th scope="col">Amount</th>
+                                    <th scope="col">Method</th>
+                                    <th scope="col">Status</th>
                                 </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($payments as $payment): ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($payment['timestamp']); ?></td>
+                                        <td><?php echo htmlspecialchars($payment['email']); ?></td>
+                                        <td><?php echo htmlspecialchars(ucfirst($payment['plan'])); ?></td>
+                                        <td class="mono highlight">
+                                            <?php echo htmlspecialchars($payment['reference']); ?>
+                                        </td>
+                                        <td class="mono"><?php echo htmlspecialchars($payment['transaction']); ?></td>
+                                        <td class="amount">$<?php echo number_format($payment['amount'], 2); ?></td>
+                                        <td class="method"><?php echo htmlspecialchars($payment['method']); ?></td>
+                                        <td>
+                                            <span class="status-badge status-verified">
+                                                <?php echo htmlspecialchars(ucfirst($payment['status'])); ?>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 <?php endif; ?>
             </section>
         </main>
     </div>
+
+    <script>
+        // Session timeout timer
+        const sessionTimeout = <?php echo SESSION_TIMEOUT; ?>;
+        const startTime = Date.now();
+        
+        function updateTimer() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const remaining = sessionTimeout - elapsed;
+            
+            if (remaining <= 0) {
+                window.location.href = 'login.php?timeout=1';
+                return;
+            }
+            
+            const minutes = Math.floor(remaining / 60);
+            const seconds = remaining % 60;
+            
+            const timerElement = document.getElementById('session-timer');
+            if (timerElement) {
+                timerElement.textContent = `(Session expires in ${minutes}:${seconds.toString().padStart(2, '0')})`;
+                
+                if (remaining < 300) { // 5 minutes
+                    timerElement.style.color = '#ff6b6b';
+                }
+            }
+        }
+        
+        setInterval(updateTimer, 1000);
+        updateTimer();
+    </script>
 </body>
 </html>
