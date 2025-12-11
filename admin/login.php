@@ -24,17 +24,17 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
 $storageDir = dirname(__DIR__) . '/storage';
 $credentialsFile = $storageDir . '/admin_credentials.json';
 
+$error = '';
+$credentials = null;
+$envUser = getenv('ADMIN_USERNAME');
+$envPass = getenv('ADMIN_PASSWORD');
+
 // Ensure storage directory exists
 if (!is_dir($storageDir)) {
     if (!mkdir($storageDir, 0750, true) && !is_dir($storageDir)) {
         $error = 'Unable to create storage directory.';
     }
 }
-
-$error = '';
-$credentials = null;
-$envUser = getenv('ADMIN_USERNAME');
-$envPass = getenv('ADMIN_PASSWORD');
 
 // Load credentials from secure location or bootstrap from env vars
 if (is_readable($credentialsFile)) {
@@ -80,15 +80,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $credentials) {
     $username = isset($_POST['username']) ? trim($_POST['username']) : '';
     $password = isset($_POST['password']) ? trim($_POST['password']) : '';
 
-    if ($credentials &&
-        $username === $credentials['username'] &&
-        password_verify($password, $credentials['password'])) {
+    if ($credentials && $username === $credentials['username']) {
+        $storedPassword = $credentials['password'];
 
-        session_regenerate_id(true);
-        $_SESSION['admin_logged_in'] = true;
-        $_SESSION['admin_username'] = $username;
-        header('Location: dashboard.php');
-        exit;
+        $passwordIsHash = password_get_info($storedPassword)['algo'] !== 0;
+        $verified = $passwordIsHash ? password_verify($password, $storedPassword) : hash_equals($storedPassword, $password);
+
+        if ($verified) {
+            if (!$passwordIsHash) {
+                $credentials['password'] = password_hash($storedPassword, PASSWORD_DEFAULT);
+                file_put_contents(
+                    $credentialsFile,
+                    json_encode($credentials, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+                    LOCK_EX
+                );
+                chmod($credentialsFile, 0640);
+            }
+
+            session_regenerate_id(true);
+            $_SESSION['admin_logged_in'] = true;
+            $_SESSION['admin_username'] = $username;
+            header('Location: dashboard.php');
+            exit;
+        } else {
+            $error = 'Invalid username or password';
+        }
     } else {
         $error = 'Invalid username or password';
     }
