@@ -124,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $credentials) {
     <div class="login-container">
         <div class="login-box">
             <div style="text-align: center; margin-bottom: 30px;">
-                <img src="images/logo.png" alt="PrimeCast Logo" style="height: 45px; width: auto;">
+                <img src="/images/logo.png" alt="PrimeCast Logo" style="height: 45px; width: auto;">
             </div>
             <h2>Admin Login</h2>
             
@@ -154,5 +154,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $credentials) {
     </div>
 </body>
 </html>
+
 
 
