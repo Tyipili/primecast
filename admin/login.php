@@ -4,14 +4,27 @@ $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
     || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
 
-// Harden session cookies
-session_set_cookie_params([
+// Harden session cookies with compatibility for PHP < 7.3
+$cookieOptions = [
     'lifetime' => 0,
     'path' => '/',
     'httponly' => true,
     'samesite' => 'Strict',
     'secure' => $isSecure
-]);
+];
+
+if (PHP_VERSION_ID >= 70300) {
+    session_set_cookie_params($cookieOptions);
+} else {
+    $path = $cookieOptions['path'] . '; samesite=' . $cookieOptions['samesite'];
+    session_set_cookie_params(
+        $cookieOptions['lifetime'],
+        $path,
+        '',
+        $cookieOptions['secure'],
+        $cookieOptions['httponly']
+    );
+}
 session_start();
 
 // Check if already logged in
@@ -124,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $credentials) {
     <div class="login-container">
         <div class="login-box">
             <div style="text-align: center; margin-bottom: 30px;">
-                <img src="/images/logo.png" alt="PrimeCast Logo" style="height: 45px; width: auto;">
+				<img src="/images/logo.png" alt="PrimeCast Logo" style="height: 45px; width: auto;">
             </div>
             <h2>Admin Login</h2>
             
@@ -154,6 +167,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $credentials) {
     </div>
 </body>
 </html>
-
-
-
