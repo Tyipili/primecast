@@ -157,13 +157,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $credentials) {
                 </div>
                 
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
-            </form>
-            
-            <p style="text-align: center; margin-top: 20px; font-size: 14px; color: var(--text-gray);">
-                Configure admin credentials via environment variables.<br>
-                Contact your server administrator if you need access.
-            </p>
+            </form>            
         </div>
     </div>
 </body>
 </html>
+
