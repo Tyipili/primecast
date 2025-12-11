@@ -124,17 +124,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $credentials) {
     <div class="login-container">
         <div class="login-box">
             <div style="text-align: center; margin-bottom: 30px;">
-                <svg width="60" height="60" viewBox="0 0 50 50" style="margin: 0 auto;">
-                    <defs>
-                        <linearGradient id="loginLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" style="stop-color:#00E5FF;stop-opacity:1" />
-                            <stop offset="100%" style="stop-color:#0091EA;stop-opacity:1" />
-                        </linearGradient>
-                    </defs>
-                    <path d="M 10 10 L 10 40 L 15 40 L 15 15 L 40 15 L 40 10 Z" fill="url(#loginLogoGradient)" opacity="0.3"/>
-                    <path d="M 15 15 L 15 45 L 45 45 L 45 15 Z" fill="none" stroke="url(#loginLogoGradient)" stroke-width="2"/>
-                    <path d="M 22 22 L 22 38 L 36 30 Z" fill="url(#loginLogoGradient)"/>
-                </svg>
+                <div class="logo">
+                    <img src="images/logo.png" alt="PrimeCast Logo" style="height: 45px; width: auto;">
+                </div>
             </div>
             <h2>Admin Login</h2>
             
@@ -164,3 +156,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $credentials) {
     </div>
 </body>
 </html>
+
