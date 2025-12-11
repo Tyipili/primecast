@@ -1,0 +1,81 @@
+# PrimeCast Root .htaccess
+# Place this in your root directory
+
+# Force HTTPS
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# Security Headers
+<IfModule mod_headers.c>
+    # Prevent clickjacking
+    Header always set X-Frame-Options "DENY"
+    
+    # Prevent MIME type sniffing
+    Header always set X-Content-Type-Options "nosniff"
+    
+    # XSS Protection
+    Header always set X-XSS-Protection "1; mode=block"
+    
+    # Referrer Policy
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # Permissions Policy
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    
+    # Remove X-Powered-By header
+    Header unset X-Powered-By
+</IfModule>
+
+# Prevent directory listing
+Options -Indexes
+
+# Protect sensitive files
+<FilesMatch "^(\.htaccess|\.htpasswd|\.env|config\.php|\.git)">
+    Require all denied
+</FilesMatch>
+
+# Protect PHP files in storage
+<FilesMatch "\.php$">
+    <If "%{REQUEST_URI} =~ m#^/storage/#">
+        Require all denied
+    </If>
+</FilesMatch>
+
+# Limit file upload size (adjust as needed)
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 5M
+    php_value post_max_size 5M
+</IfModule>
+
+# Custom error pages (create these files)
+ErrorDocument 404 /404.html
+ErrorDocument 403 /403.html
+ErrorDocument 500 /500.html
+
+# Compress text files
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+# Browser caching
+<IfModule mod_expires.c>
+    ExpiresActive On
+    
+    # Images
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType image/x-icon "access plus 1 year"
+    
+    # CSS and JavaScript
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType text/javascript "access plus 1 month"
+    
+    # HTML (no cache for dynamic content)
+    ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
