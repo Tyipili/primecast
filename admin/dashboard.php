@@ -4,13 +4,27 @@ $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
     || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
 
-session_set_cookie_params([
+$cookieOptions = [
     'lifetime' => 0,
     'path' => '/',
     'httponly' => true,
     'samesite' => 'Strict',
     'secure' => $isSecure
-]);
+];
+
+// Support older PHP versions that don't accept array parameters for session_set_cookie_params
+if (PHP_VERSION_ID >= 70300) {
+    session_set_cookie_params($cookieOptions);
+} else {
+    $path = $cookieOptions['path'] . '; samesite=' . $cookieOptions['samesite'];
+    session_set_cookie_params(
+        $cookieOptions['lifetime'],
+        $path,
+        '',
+        $cookieOptions['secure'],
+        $cookieOptions['httponly']
+    );
+}
 
 session_start();
 
@@ -26,13 +40,28 @@ if (isset($_GET['logout'])) {
 
     if (ini_get('session.use_cookies')) {
         $params = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000, [
-            'path' => $params['path'] ?? '/',
-            'domain' => $params['domain'] ?? '',
-            'secure' => $params['secure'],
-            'httponly' => $params['httponly'],
-            'samesite' => $params['samesite'] ?? 'Strict'
-        ]);
+
+        if (PHP_VERSION_ID >= 70300) {
+            setcookie(session_name(), '', [
+                'expires' => time() - 42000,
+                'path' => $params['path'] ?? $cookieOptions['path'],
+                'domain' => $params['domain'] ?? '',
+                'secure' => $params['secure'] ?? $cookieOptions['secure'],
+                'httponly' => $params['httponly'] ?? $cookieOptions['httponly'],
+                'samesite' => $params['samesite'] ?? $cookieOptions['samesite']
+            ]);
+        } else {
+            $path = ($params['path'] ?? $cookieOptions['path']) . '; samesite=' . ($params['samesite'] ?? $cookieOptions['samesite']);
+            setcookie(
+                session_name(),
+                '',
+                time() - 42000,
+                $path,
+                '',
+                $params['secure'] ?? $cookieOptions['secure'],
+                $params['httponly'] ?? $cookieOptions['httponly']
+            );
+        }
     }
 
     session_destroy();
