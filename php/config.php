@@ -69,14 +69,14 @@ if (PAYPAL_MODE === 'live') {
     define('PAYPAL_API_URL', 'https://api-m.sandbox.paypal.com');
 }
 
-// Allowed Plans (whitelist)
+// Allowed Plans (whitelist) - MUST MATCH FRONTEND
 define('ALLOWED_PLANS', ['basic', 'standard', 'premium']);
 
-// Plan Prices (for verification)
+// Plan Prices (for verification) - MUST MATCH FRONTEND
 define('PLAN_PRICES', [
-    'basic' => 19.99,
-    'standard' => 29.99,
-    'premium' => 39.99
+    'basic' => 25.00,      // 1-Month Plan
+    'standard' => 60.00,   // 3-Month Plan
+    'premium' => 150.00    // 12-Month Plan
 ]);
 
 /**
