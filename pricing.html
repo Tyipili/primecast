@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pricing - PrimeCast</title>
+    <meta name="description" content="Choose your PrimeCast IPTV plan. Flexible pricing with 1000+ channels, 4K quality, and no buffering.">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -14,15 +15,15 @@
                 <div class="logo">
                     <img src="images/logo.png" alt="PrimeCast Logo" style="height: 45px; width: auto;">
                 </div>
-                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle mobile menu">
                     <span></span>
                     <span></span>
                     <span></span>
                 </button>
                 <ul class="nav-menu" id="navMenu">
-                    <li><a href="index.html" class="active">Home</a></li>
+                    <li><a href="index.html">Home</a></li>
                     <li><a href="channels.html">Channels</a></li>
-                    <li><a href="pricing.html">Pricing</a></li>
+                    <li><a href="pricing.html" class="active">Pricing</a></li>
                     <li><a href="faq.html">FAQ</a></li>
                     <li><a href="contact.html">Contact</a></li>
                 </ul>
@@ -44,10 +45,10 @@
     <section class="pricing-grid-section">
         <div class="container">
             <div class="pricing-grid">
-                <!-- 1-Month Plan -->
+                <!-- Basic Plan (1-Month) -->
                 <div class="pricing-card">
-                    <span class="plan-badge">STANDARD</span>
-                    <div class="plan-name">Monthly</div>
+                    <span class="plan-badge">MONTHLY</span>
+                    <div class="plan-name">Basic</div>
                     <div class="plan-price">$25</div>
                     <div class="plan-period">per month</div>
                     <ul class="plan-features">
@@ -59,13 +60,13 @@
                         <li>24/7 Customer Support</li>
                         <li>Cancel Anytime</li>
                     </ul>
-                    <a href="checkout.html?plan=1month" class="btn btn-primary">Get Started</a>
+                    <a href="checkout.html?plan=basic" class="btn btn-primary">Get Started</a>
                 </div>
 
-                <!-- 3-Month Plan -->
+                <!-- Standard Plan (3-Month) -->
                 <div class="pricing-card featured">
                     <span class="plan-badge">MOST POPULAR</span>
-                    <div class="plan-name">Quarterly</div>
+                    <div class="plan-name">Standard</div>
                     <div class="plan-price">$60</div>
                     <div class="plan-period">3 months / $20 per month</div>
                     <ul class="plan-features">
@@ -78,13 +79,13 @@
                         <li>Save $15 vs Monthly</li>
                         <li>Priority Activation</li>
                     </ul>
-                    <a href="checkout.html?plan=3month" class="btn btn-primary">Get Started</a>
+                    <a href="checkout.html?plan=standard" class="btn btn-primary">Get Started</a>
                 </div>
 
-                <!-- 12-Month Plan -->
+                <!-- Premium Plan (12-Month) -->
                 <div class="pricing-card">
                     <span class="plan-badge">BEST VALUE</span>
-                    <div class="plan-name">Annual</div>
+                    <div class="plan-name">Premium</div>
                     <div class="plan-price">$150</div>
                     <div class="plan-period">12 months / $12.50 per month</div>
                     <ul class="plan-features">
@@ -98,7 +99,7 @@
                         <li>Priority Activation</li>
                         <li>Exclusive Content Access</li>
                     </ul>
-                    <a href="checkout.html?plan=12month" class="btn btn-primary">Get Started</a>
+                    <a href="checkout.html?plan=premium" class="btn btn-primary">Get Started</a>
                 </div>
             </div>
         </div>
@@ -175,7 +176,3 @@
     <script src="js/main.js"></script>
 </body>
 </html>
-
-
-
-
