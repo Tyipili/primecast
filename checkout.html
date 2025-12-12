@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Checkout - PrimeCast</title>
+    <meta name="description" content="Complete your PrimeCast IPTV subscription purchase securely">
+    <meta name="robots" content="noindex, nofollow">
     <link rel="stylesheet" href="css/style.css">
-    <!-- PayPal SDK -->
+    <!-- PayPal SDK - IMPORTANT: Replace YOUR_CLIENT_ID_HERE with your actual PayPal Client ID -->
     <script src="https://www.paypal.com/sdk/js?client-id=YOUR_CLIENT_ID_HERE&currency=USD"></script>
 </head>
 <body>
@@ -16,13 +18,13 @@
                 <div class="logo">
                     <img src="images/logo.png" alt="PrimeCast Logo" style="height: 45px; width: auto;">
                 </div>
-                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle mobile menu">
                     <span></span>
                     <span></span>
                     <span></span>
                 </button>
                 <ul class="nav-menu" id="navMenu">
-                    <li><a href="index.html" class="active">Home</a></li>
+                    <li><a href="index.html">Home</a></li>
                     <li><a href="channels.html">Channels</a></li>
                     <li><a href="pricing.html">Pricing</a></li>
                     <li><a href="faq.html">FAQ</a></li>
@@ -36,7 +38,7 @@
     <div class="checkout-container">
         <h1 style="color: var(--gold); text-align: center; margin-bottom: 10px;">Complete Your Order</h1>
         <p style="text-align: center; color: var(--text-gray); margin-bottom: 40px;">
-            Your order reference: <span class="reference-display" id="orderReference"></span>
+            Your order reference: <span class="reference-display" id="orderReference">Generating...</span>
         </p>
 
         <!-- Important Notice -->
@@ -75,13 +77,10 @@
                 <p style="color: var(--text-gray); margin-bottom: 20px;">
                     Secure payment processing through PayPal. You don't need a PayPal account to use your credit card.
                 </p>
-                <p style="color: var(--text-gray); margin-bottom: 12px;">
-                    Prefer to finish directly on PayPal? Use the button below to open the official PayPal checkout site in a new tab.
-                </p>
-                <a class="btn btn-primary" href="https://www.paypal.com/checkoutnow" target="_blank" rel="noopener noreferrer" style="margin-bottom: 18px; display: inline-block;">
-                    Continue on PayPal.com
-                </a>
                 <div id="paypal-button-container"></div>
+                <div id="paypal-loading" style="display: none; text-align: center; padding: 20px; color: var(--neon-blue);">
+                    Processing payment... Please wait.
+                </div>
             </div>
             
             <!-- E-transfer Option -->
@@ -94,7 +93,7 @@
                 <div class="info-box">
                     <p><strong>E-transfer Details:</strong></p>
                     <div class="email-copy">
-                        <input type="text" id="etransferEmail" value="info@primecast.world" readonly>
+                        <input type="text" id="etransferEmail" value="info@primecast.world" readonly aria-label="E-transfer email address">
                         <button class="btn-copy" onclick="copyEmail()" id="copyEmailBtn">Copy Email</button>
                     </div>
                     <p style="margin-top: 15px;"><strong>Important:</strong> Please include your order reference number in the e-transfer message.</p>
@@ -102,11 +101,18 @@
 
                 <form id="etransferForm" style="margin-top: 25px;">
                     <div class="form-group">
-                        <label>Your Email Address *</label>
-                        <input type="email" id="customerEmail" placeholder="your@email.com" required>
+                        <label for="customerEmail">Your Email Address *</label>
+                        <input 
+                            type="email" 
+                            id="customerEmail" 
+                            name="customerEmail"
+                            placeholder="your@email.com" 
+                            required
+                            aria-required="true">
+                        <span class="error-message-inline" id="emailError" style="display: none;"></span>
                     </div>
                     <input type="hidden" id="selectedPlan" value="">
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <button type="submit" class="btn btn-primary" id="etransferSubmitBtn" style="width: 100%;">
                         I've Sent the E-transfer
                     </button>
                     <p style="text-align: center; color: var(--text-gray); margin-top: 15px; font-size: 14px;">
@@ -154,16 +160,42 @@
         </div>
     </footer>
 
+    <script src="js/main.js"></script>
     <script>
+        // Plan configuration - MUST match config.php EXACTLY
+        const plans = {
+            'basic': { 
+                name: 'Basic Plan (1 Month)', 
+                duration: '1 Month', 
+                price: '$25', 
+                value: '25.00',
+                planId: 'basic'
+            },
+            'standard': { 
+                name: 'Standard Plan (3 Months)', 
+                duration: '3 Months', 
+                price: '$60', 
+                value: '60.00',
+                planId: 'standard'
+            },
+            'premium': { 
+                name: 'Premium Plan (12 Months)', 
+                duration: '12 Months', 
+                price: '$150', 
+                value: '150.00',
+                planId: 'premium'
+            }
+        };
+
         // Get plan from URL
         const urlParams = new URLSearchParams(window.location.search);
-        const plan = urlParams.get('plan') || '1month';
+        const plan = urlParams.get('plan') || 'basic';
         
-        const plans = {
-            '1month': { name: '1-Month Plan', duration: '1 Month', price: '$25', value: '25.00' },
-            '3month': { name: '3-Month Plan', duration: '3 Months', price: '$60', value: '60.00' },
-            '12month': { name: '12-Month Plan', duration: '12 Months', price: '$150', value: '150.00' }
-        };
+        // Validate plan exists
+        if (!plans[plan]) {
+            alert('Invalid plan selected. Redirecting to pricing page.');
+            window.location.href = 'pricing.html';
+        }
         
         // Update order summary
         document.getElementById('planName').textContent = plans[plan].name;
@@ -179,17 +211,35 @@
                         purchase_units: [{
                             description: `PrimeCast ${plans[plan].name}`,
                             amount: {
-                                value: plans[plan].value
+                                value: plans[plan].value,
+                                currency_code: 'USD'
                             }
                         }]
                     });
                 },
                 onApprove: async function(data, actions) {
-                    const order = await actions.order.capture();
-                    const email = order.payer.email_address;
-                    const reference = sessionStorage.getItem('orderReference');
+                    // Show loading
+                    const paypalContainer = document.getElementById('paypal-button-container');
+                    const loadingDiv = document.getElementById('paypal-loading');
+                    paypalContainer.style.display = 'none';
+                    loadingDiv.style.display = 'block';
                     
                     try {
+                        const order = await actions.order.capture();
+                        
+                        // Validate order data
+                        if (!order || !order.payer || !order.payer.email_address) {
+                            throw new Error('Invalid order data received from PayPal');
+                        }
+                        
+                        if (!order.id) {
+                            throw new Error('Missing transaction ID');
+                        }
+                        
+                        const email = order.payer.email_address;
+                        const reference = sessionStorage.getItem('orderReference') || generateReference();
+                        
+                        // Send to activation script
                         const response = await fetch('php/activate.php', {
                             method: 'POST',
                             headers: {
@@ -197,7 +247,7 @@
                             },
                             body: JSON.stringify({
                                 email: email,
-                                plan: plans[plan].name,
+                                plan: plans[plan].planId,
                                 reference: reference,
                                 transaction_id: order.id,
                                 amount: plans[plan].value,
@@ -205,23 +255,166 @@
                             })
                         });
                         
-                        window.location.href = 'thankyou.html';
-                    } catch (error) {
-                        alert('Payment successful! You will receive a confirmation email shortly.');
-                        setTimeout(() => {
+                        const result = await response.json();
+                        
+                        if (response.ok && result.success) {
                             window.location.href = 'thankyou.html';
-                        }, 2000);
+                        } else {
+                            throw new Error(result.error || 'Server validation failed');
+                        }
+                    } catch (error) {
+                        console.error('Payment processing error:', error);
+                        
+                        // Show error to user
+                        alert('Payment was captured but there was an issue with verification. Our team will contact you shortly at the email you provided. Please save your transaction details.');
+                        
+                        // Restore PayPal button
+                        paypalContainer.style.display = 'block';
+                        loadingDiv.style.display = 'none';
+                        
+                        // Log for debugging
+                        console.error('Full error details:', {
+                            error: error.message,
+                            plan: plan,
+                            reference: sessionStorage.getItem('orderReference')
+                        });
                     }
                 },
                 onError: function(err) {
                     console.error('PayPal Error:', err);
-                    alert('There was an error processing your payment. Please try again or use E-transfer.');
+                    alert('There was an error processing your payment. Please try again or use E-transfer. If the problem persists, contact us at info@primecast.world');
+                },
+                onCancel: function(data) {
+                    console.log('Payment cancelled by user');
+                    alert('Payment cancelled. You can try again when ready.');
                 }
             }).render('#paypal-button-container');
+        } else {
+            document.getElementById('paypal-button-container').innerHTML = 
+                '<div style="color: #ff6b6b; padding: 20px; text-align: center; border: 1px solid #ff6b6b; border-radius: 8px;">' +
+                'PayPal SDK failed to load. Please refresh the page or contact support.' +
+                '</div>';
+            console.error('PayPal SDK not loaded. Check your Client ID in the script tag.');
+        }
+
+        // Copy email function
+        function copyEmail() {
+            const emailInput = document.getElementById('etransferEmail');
+            if (emailInput) {
+                emailInput.select();
+                emailInput.setSelectionRange(0, 99999); // For mobile
+                
+                navigator.clipboard.writeText(emailInput.value).then(() => {
+                    const copyBtn = document.getElementById('copyEmailBtn');
+                    const originalText = copyBtn.textContent;
+                    copyBtn.textContent = '✓ Copied!';
+                    copyBtn.style.background = '#4CAF50';
+                    
+                    setTimeout(() => {
+                        copyBtn.textContent = originalText;
+                        copyBtn.style.background = '';
+                    }, 2000);
+                }).catch(err => {
+                    alert('Failed to copy. Please manually copy: info@primecast.world');
+                });
+            }
+        }
+
+        // E-transfer form validation and submission
+        const etransferForm = document.getElementById('etransferForm');
+        if (etransferForm) {
+            const emailInput = document.getElementById('customerEmail');
+            const emailError = document.getElementById('emailError');
+            
+            // Real-time email validation
+            emailInput.addEventListener('blur', function() {
+                validateEmailField();
+            });
+            
+            emailInput.addEventListener('input', function() {
+                if (this.classList.contains('error')) {
+                    validateEmailField();
+                }
+            });
+            
+            function validateEmailField() {
+                const email = emailInput.value.trim();
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                
+                if (!email) {
+                    emailInput.classList.add('error');
+                    emailError.textContent = 'Email is required';
+                    emailError.style.display = 'block';
+                    return false;
+                } else if (!emailRegex.test(email)) {
+                    emailInput.classList.add('error');
+                    emailError.textContent = 'Please enter a valid email address';
+                    emailError.style.display = 'block';
+                    return false;
+                } else {
+                    emailInput.classList.remove('error');
+                    emailInput.classList.add('success');
+                    emailError.style.display = 'none';
+                    return true;
+                }
+            }
+            
+            etransferForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                // Validate email
+                if (!validateEmailField()) {
+                    emailInput.focus();
+                    return;
+                }
+                
+                const submitBtn = document.getElementById('etransferSubmitBtn');
+                const originalText = submitBtn.textContent;
+                
+                const email = emailInput.value.trim();
+                const planName = document.getElementById('selectedPlan').value;
+                const reference = sessionStorage.getItem('orderReference') || generateReference();
+                
+                // Disable button and show loading
+                submitBtn.textContent = 'Processing...';
+                submitBtn.disabled = true;
+                submitBtn.classList.add('loading');
+                
+                try {
+                    const response = await fetch('php/activate.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            email: email,
+                            plan: plans[plan].planId,
+                            reference: reference,
+                            transaction_id: reference, // Use reference as transaction ID for e-transfers
+                            amount: plans[plan].value,
+                            payment_method: 'etransfer'
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {
+                        window.location.href = 'thankyou.html';
+                    } else {
+                        alert(result.error || 'There was an issue submitting your order. Please contact us at info@primecast.world with your order reference: ' + reference);
+                        submitBtn.textContent = originalText;
+                        submitBtn.disabled = false;
+                        submitBtn.classList.remove('loading');
+                    }
+                } catch (error) {
+                    console.error('E-transfer submission error:', error);
+                    alert('Your order has been received. You will receive a confirmation email shortly. Order reference: ' + reference);
+                    setTimeout(() => {
+                        window.location.href = 'thankyou.html';
+                    }, 2000);
+                }
+            });
         }
     </script>
-    <script src="js/main.js"></script>
 </body>
-
 </html>
-
