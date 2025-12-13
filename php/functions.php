@@ -7,7 +7,7 @@
 // Environment configuration
 define('ENVIRONMENT', getenv('APP_ENV') ?: 'production');
 define('SITE_URL', getenv('SITE_URL') ?: 'https://primecast.ct.ws');
-define('ADMIN_EMAIL', getenv('ADMIN_EMAIL') ?: 'info@primecast.world');
+define('ADMIN_EMAIL', getenv('ADMIN_EMAIL') ?: 'istvan.szekely@gmail.com');
 
 /**
  * Start session safely with security settings
