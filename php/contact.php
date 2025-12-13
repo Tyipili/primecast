@@ -1,19 +1,14 @@
 <?php
-/**
- * PrimeCast Contact Form Handler
- * Secure contact form with CSRF protection and rate limiting
- */
+require_once __DIR__ . '/functions.php';
 
 // Security headers
 header('Content-Type: application/json');
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST');
-header('Access-Control-Allow-Headers: Content-Type');
 
-// Start session for CSRF validation
-session_start();
+// Start session safely
+startSession();
 
 // Check request method
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -241,3 +236,4 @@ file_put_contents($securityLog, $entry, FILE_APPEND | LOCK_EX);
 
 // Return success
 echo json_encode(['success' => true, 'message' => 'Thank you for your message! We will respond within 4 hours.']);
+
