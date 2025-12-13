@@ -221,8 +221,8 @@ function sendEmail($to, $subject, $message, $replyTo = null) {
         $mail->isSMTP();
         $mail->Host       = getenv('SMTP_HOST') ?: 'smtp.gmail.com'; // Change this
         $mail->SMTPAuth   = true;
-        $mail->Username   = getenv('SMTP_USERNAME') ?: 'your-email@gmail.com'; // Change this
-        $mail->Password   = getenv('SMTP_PASSWORD') ?: 'your-app-password'; // Change this
+        $mail->Username   = getenv('SMTP_USERNAME') ?: 'primecast00@gmail.com'; // Change this
+        $mail->Password   = getenv('SMTP_PASSWORD') ?: 'qzzsbqlszuyddvaj'; // Change this
         $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = getenv('SMTP_PORT') ?: 587;
         $mail->CharSet    = 'UTF-8';
