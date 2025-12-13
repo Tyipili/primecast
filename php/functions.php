@@ -206,31 +206,59 @@ function rotateLogIfNeeded($logFile, $maxSize = 5242880) { // 5MB
 }
 
 /**
- * Send email safely with proper error handling
+ * Send email using SMTP (PHPMailer)
  */
 function sendEmail($to, $subject, $message, $replyTo = null) {
-    $headers = "MIME-Version: 1.0\r\n";
-    $headers .= "Content-type: text/plain; charset=UTF-8\r\n";
-    $headers .= "From: PrimeCast <" . ADMIN_EMAIL . ">\r\n";
+    // Load PHPMailer
+    require_once __DIR__ . '/PHPMailer/PHPMailer.php';
+    require_once __DIR__ . '/PHPMailer/SMTP.php';
+    require_once __DIR__ . '/PHPMailer/Exception.php';
     
-    if ($replyTo) {
-        $headers .= "Reply-To: $replyTo\r\n";
-    } else {
-        $headers .= "Reply-To: " . ADMIN_EMAIL . "\r\n";
+    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+    
+    try {
+        // SMTP Configuration
+        $mail->isSMTP();
+        $mail->Host       = getenv('SMTP_HOST') ?: 'smtp.gmail.com'; // Change this
+        $mail->SMTPAuth   = true;
+        $mail->Username   = getenv('SMTP_USERNAME') ?: 'your-email@gmail.com'; // Change this
+        $mail->Password   = getenv('SMTP_PASSWORD') ?: 'your-app-password'; // Change this
+        $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = getenv('SMTP_PORT') ?: 587;
+        $mail->CharSet    = 'UTF-8';
+        
+        // Sender
+        $mail->setFrom(ADMIN_EMAIL, 'PrimeCast');
+        
+        // Recipient
+        $mail->addAddress($to);
+        
+        // Reply-To
+        if ($replyTo) {
+            $mail->addReplyTo($replyTo);
+        } else {
+            $mail->addReplyTo(ADMIN_EMAIL);
+        }
+        
+        // Content
+        $mail->isHTML(false); // Plain text
+        $mail->Subject = $subject;
+        $mail->Body    = $message;
+        
+        // Send
+        $mail->send();
+        return true;
+        
+    } catch (Exception $e) {
+        error_log("Email failed to send. To: $to, Error: {$mail->ErrorInfo}");
+        logSecurityEvent('EMAIL_FAILED', [
+            'to' => $to, 
+            'subject' => $subject,
+            'error' => $mail->ErrorInfo
+        ]);
+        return false;
     }
-    
-    $headers .= "X-Mailer: PHP/" . phpversion();
-    
-    $success = @mail($to, $subject, $message, $headers);
-    
-    if (!$success) {
-        error_log("Email failed to send. To: $to, Subject: $subject");
-        logSecurityEvent('EMAIL_FAILED', ['to' => $to, 'subject' => $subject]);
-    }
-    
-    return $success;
 }
-
 /**
  * Validate order reference format
  */
