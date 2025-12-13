@@ -6,26 +6,17 @@
 
 require_once __DIR__ . '/functions.php';
 
-header('Content-Type: application/json');
-header('X-Content-Type-Options: nosniff');
+// Set security and CORS headers
+setSecurityHeaders();
+setCORSHeaders('GET');
 
-// CORS headers
-if (ENVIRONMENT === 'development') {
-    header('Access-Control-Allow-Origin: *');
-} else {
-    header('Access-Control-Allow-Origin: https://yourdomain.com');
-}
-
-header('Access-Control-Allow-Methods: GET');
-header('Access-Control-Allow-Headers: Content-Type');
-
+// Check request method
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     sendError(405, 'Method not allowed');
 }
 
+// Get or generate CSRF token
 $token = getCSRFToken();
 
-echo json_encode([
-    'success' => true,
-    'token' => $token
-]);
+// Return token
+sendSuccess(['token' => $token]);
