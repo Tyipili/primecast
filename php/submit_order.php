@@ -1,57 +1,30 @@
 <?php
 /**
  * PrimeCast Order Submission Handler
- * Simple e-transfer order processing
+ * Simple e-transfer order processing with CSRF protection
  */
 
-// Security headers
-header('Content-Type: application/json');
-header('X-Content-Type-Options: nosniff');
-header('X-Frame-Options: DENY');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST');
-header('Access-Control-Allow-Headers: Content-Type');
+require_once __DIR__ . '/functions.php';
+
+// Set security and CORS headers
+setSecurityHeaders();
+setCORSHeaders('POST');
 
 // Check request method
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed', 'success' => false]);
-    exit;
+    sendError(405, 'Method not allowed');
 }
 
-// Check POST size (1MB limit)
-if (isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 1048576) {
-    http_response_code(413);
-    echo json_encode(['error' => 'Payload too large', 'success' => false]);
-    exit;
-}
+// Validate request size
+validateRequestSize();
 
-// Rate limiting (5 requests per 5 minutes per IP)
-session_start();
-$ip = $_SERVER['REMOTE_ADDR'];
-$rateFile = __DIR__ . '/../storage/rate_limit_' . md5($ip) . '.json';
-$now = time();
-$maxRequests = 5;
-$timeWindow = 300;
+// Start session for CSRF
+startSession();
 
-if (file_exists($rateFile)) {
-    $data = json_decode(file_get_contents($rateFile), true);
-    if ($data && isset($data['attempts'])) {
-        $attempts = array_filter($data['attempts'], function($timestamp) use ($now, $timeWindow) {
-            return ($now - $timestamp) < $timeWindow;
-        });
-        
-        if (count($attempts) >= $maxRequests) {
-            http_response_code(429);
-            echo json_encode(['error' => 'Too many requests. Please try again later.', 'success' => false]);
-            exit;
-        }
-        
-        $attempts[] = $now;
-        file_put_contents($rateFile, json_encode(['attempts' => $attempts]), LOCK_EX);
-    }
-} else {
-    file_put_contents($rateFile, json_encode(['attempts' => [$now]]), LOCK_EX);
+// Rate limiting
+$rateLimitResult = checkRateLimit($_SERVER['REMOTE_ADDR']);
+if ($rateLimitResult !== true) {
+    sendError(429, $rateLimitResult);
 }
 
 // Get and parse JSON input
@@ -59,70 +32,85 @@ $input = file_get_contents('php://input');
 $data = json_decode($input, true);
 
 if (!is_array($data)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid JSON payload', 'success' => false]);
-    exit;
+    sendError(400, 'Invalid JSON payload');
 }
 
-// Extract and validate data
-$name = isset($data['name']) ? htmlspecialchars(strip_tags(trim($data['name'])), ENT_QUOTES, 'UTF-8') : '';
-$email = isset($data['email']) ? filter_var(trim($data['email']), FILTER_VALIDATE_EMAIL) : false;
-$plan = isset($data['plan']) ? htmlspecialchars(strip_tags(trim($data['plan'])), ENT_QUOTES, 'UTF-8') : '';
-$amount = isset($data['amount']) ? htmlspecialchars(strip_tags(trim($data['amount'])), ENT_QUOTES, 'UTF-8') : '';
-$orderRef = isset($data['order_reference']) ? htmlspecialchars(strip_tags(trim($data['order_reference'])), ENT_QUOTES, 'UTF-8') : '';
-$etransferRef = isset($data['etransfer_reference']) ? htmlspecialchars(strip_tags(trim($data['etransfer_reference'])), ENT_QUOTES, 'UTF-8') : '';
+// Extract data
+$name = $data['name'] ?? '';
+$email = $data['email'] ?? '';
+$plan = $data['plan'] ?? '';
+$amount = $data['amount'] ?? '';
+$orderRef = $data['order_reference'] ?? '';
+$etransferRef = $data['etransfer_reference'] ?? '';
+$csrfToken = $data['csrf_token'] ?? '';
 
-// Validate inputs
+// Validate CSRF token
+if (!validateCSRFToken($csrfToken)) {
+    logSecurityEvent('CSRF_FAILED', ['form' => 'order_submission', 'order_ref' => $orderRef]);
+    sendError(403, 'Invalid security token. Please refresh the page and try again.');
+}
+
+// Validate name
 if (empty($name)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Name is required', 'success' => false]);
-    exit;
+    sendError(400, 'Name is required');
 }
 
+$name = sanitizeString($name);
+
+if (strlen($name) < 2) {
+    sendError(400, 'Name must be at least 2 characters');
+}
+
+// Validate email
+$email = filter_var(trim($email), FILTER_VALIDATE_EMAIL);
 if (!$email) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Valid email is required', 'success' => false]);
-    exit;
+    sendError(400, 'Valid email address is required');
 }
 
-if (empty($plan)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Plan is required', 'success' => false]);
-    exit;
+// Validate plan
+$plan = sanitizeString($plan);
+if (!validatePlan($plan)) {
+    logSecurityEvent('INVALID_PLAN', ['plan' => $plan, 'email' => $email]);
+    sendError(400, 'Invalid plan selected');
 }
 
-if (empty($orderRef)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Order reference is required', 'success' => false]);
-    exit;
+// Validate amount
+$amount = sanitizeString($amount);
+if (!is_numeric($amount) || floatval($amount) <= 0) {
+    sendError(400, 'Invalid amount');
 }
 
-if (empty($etransferRef)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'E-transfer reference is required', 'success' => false]);
-    exit;
+// Validate order reference format
+$orderRef = sanitizeString($orderRef);
+if (!validateOrderReference($orderRef)) {
+    logSecurityEvent('INVALID_ORDER_REF', ['ref' => $orderRef, 'email' => $email]);
+    sendError(400, 'Invalid order reference format');
 }
 
-// Log security event
-$securityLog = __DIR__ . '/../storage/logs/security.log';
-if (!is_dir(__DIR__ . '/../storage/logs')) {
-    mkdir(__DIR__ . '/../storage/logs', 0750, true);
+// Validate e-transfer reference
+$etransferRef = sanitizeString($etransferRef);
+if (empty($etransferRef) || strlen($etransferRef) < 3) {
+    sendError(400, 'E-transfer reference is required');
 }
 
-$securityEntry = sprintf(
-    "[%s] ORDER_SUBMITTED | IP: %s | Email: %s | Reference: %s\n",
-    date('Y-m-d H:i:s'),
-    $ip,
-    $email,
-    $orderRef
-);
-file_put_contents($securityLog, $securityEntry, FILE_APPEND | LOCK_EX);
+// Ensure storage directories exist
+ensureStorageDirectory();
+ensureStorageDirectory('logs');
+
+// Check for duplicate order reference
+$ordersFile = __DIR__ . '/../storage/orders.txt';
+if (file_exists($ordersFile)) {
+    $existingOrders = file_get_contents($ordersFile);
+    if (strpos($existingOrders, $orderRef) !== false) {
+        logSecurityEvent('DUPLICATE_ORDER', ['ref' => $orderRef, 'email' => $email]);
+        sendError(400, 'This order reference has already been submitted');
+    }
+}
 
 // Log order to file
-$ordersFile = __DIR__ . '/../storage/orders.txt';
 $timestamp = date('Y-m-d H:i:s');
 $orderEntry = sprintf(
-    "%s | %s | %s | %s | %s\n",
+    "%s | %s | %s | %s | %s | pending\n",
     $timestamp,
     $email,
     $orderRef,
@@ -131,84 +119,95 @@ $orderEntry = sprintf(
 );
 
 if (file_put_contents($ordersFile, $orderEntry, FILE_APPEND | LOCK_EX) === false) {
-    error_log("Failed to write to orders log");
-    http_response_code(500);
-    echo json_encode(['error' => 'Failed to save order. Please contact support.', 'success' => false]);
-    exit;
+    error_log("Failed to write to orders file");
+    logSecurityEvent('ORDER_WRITE_FAILED', ['ref' => $orderRef, 'email' => $email]);
+    sendError(500, 'Failed to save order. Please contact support at ' . ADMIN_EMAIL);
 }
 
+// Log security event
+logSecurityEvent('ORDER_SUBMITTED', [
+    'email' => $email,
+    'ref' => $orderRef,
+    'plan' => $plan,
+    'amount' => $amount
+]);
+
 // Send confirmation email to customer
-$customerSubject = "Order Received - PrimeCast";
+$customerSubject = "Order Received - PrimeCast [$orderRef]";
 $customerMessage = "Hello $name,
 
 Thank you for your order with PrimeCast!
 
 Order Details:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Plan: $plan
 Amount: $$amount
 Order Reference: $orderRef
 E-transfer Reference: $etransferRef
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 We have received your order and will verify your e-transfer payment shortly.
 
 Your login credentials will be sent to this email address within 1-4 hours after we confirm your payment.
 
-If you have any questions, please contact us at info@primecast.world
+What happens next:
+1. Our team will verify your e-transfer payment
+2. We'll create your account
+3. You'll receive login credentials via email
+4. Start enjoying premium IPTV streaming!
+
+If you have any questions or don't receive your credentials within 4 hours, please contact us at " . ADMIN_EMAIL . "
 
 Best regards,
 The PrimeCast Team
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 This is an automated confirmation.
+Please save this email for your records.
 ";
 
-$customerHeaders = "MIME-Version: 1.0\r\n";
-$customerHeaders .= "Content-type: text/plain; charset=UTF-8\r\n";
-$customerHeaders .= "From: PrimeCast <info@primecast.world>\r\n";
-$customerHeaders .= "Reply-To: info@primecast.world\r\n";
-
-mail($email, $customerSubject, $customerMessage, $customerHeaders);
+sendEmail($email, $customerSubject, $customerMessage);
 
 // Send alert email to admin
-$adminSubject = "New PrimeCast Order - $plan";
-$adminMessage = "New order received:
+$adminSubject = "🔔 New PrimeCast Order - $plan";
+$adminMessage = "New order received and requires payment verification:
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Customer Details:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Name: $name
 Email: $email
 
 Order Details:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Plan: $plan
 Amount to Verify: $$amount
 Order Reference: $orderRef
 E-transfer Reference: $etransferRef
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Action Required:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1. Check your bank for e-transfer with reference: $orderRef
-2. Verify amount: $$amount
-3. Create customer account
-4. Send login credentials to: $email
+2. Verify amount matches: $$amount
+3. Verify e-transfer reference: $etransferRef
+4. Create customer account with plan: $plan
+5. Send login credentials to: $email
 
 View all orders in admin dashboard:
-https://yourdomain.com/admin/dashboard.php
+" . SITE_URL . "/admin/dashboard.php
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Submission Details:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IP Address: " . $_SERVER['REMOTE_ADDR'] . "
+Timestamp: $timestamp
 ";
 
-$adminHeaders = "MIME-Version: 1.0\r\n";
-$adminHeaders .= "Content-type: text/plain; charset=UTF-8\r\n";
-$adminHeaders .= "From: PrimeCast System <info@primecast.world>\r\n";
-
-mail('info@primecast.world', $adminSubject, $adminMessage, $adminHeaders);
+sendEmail(ADMIN_EMAIL, $adminSubject, $adminMessage);
 
 // Return success
-echo json_encode([
-    'success' => true,
+sendSuccess([
     'message' => 'Order submitted successfully',
     'order_reference' => $orderRef
 ]);
