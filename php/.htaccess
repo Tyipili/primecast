@@ -1,0 +1,4 @@
+# Only allow access to PHP files (block direct .txt, .log access)
+<FilesMatch "\.(txt|log|json)$">
+    Require all denied
+</FilesMatch>
