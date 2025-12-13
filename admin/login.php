@@ -1,36 +1,8 @@
 <?php
 /**
  * PrimeCast Admin Login
- * Secure admin authentication with brute force protection
+ * Simple admin authentication with security features
  */
-
-require_once __DIR__ . '/../php/functions.php';
-
-// Detect secure connection
-$isSecure = isSecure();
-
-// Configure secure session cookies
-$cookieOptions = [
-    'lifetime' => 0,
-    'path' => '/',
-    'domain' => '',
-    'secure' => $isSecure,
-    'httponly' => true,
-    'samesite' => 'Strict'
-];
-
-if (PHP_VERSION_ID >= 70300) {
-    session_set_cookie_params($cookieOptions);
-} else {
-    $path = $cookieOptions['path'] . '; samesite=' . $cookieOptions['samesite'];
-    session_set_cookie_params(
-        $cookieOptions['lifetime'],
-        $path,
-        $cookieOptions['domain'],
-        $cookieOptions['secure'],
-        $cookieOptions['httponly']
-    );
-}
 
 session_start();
 
@@ -40,141 +12,130 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
     exit;
 }
 
-// Storage locations
-$credentialsFile = STORAGE_PATH . '/admin_credentials.json';
-
+$storageDir = dirname(__DIR__) . '/storage';
+$credentialsFile = $storageDir . '/admin_credentials.json';
 $error = '';
 $timeout = isset($_GET['timeout']) ? true : false;
-$credentials = null;
 
-// Environment variables for initial setup
+// Ensure storage directory exists
+if (!is_dir($storageDir)) {
+    mkdir($storageDir, 0750, true);
+}
+
+// Load or create credentials
+$credentials = null;
 $envUser = getenv('ADMIN_USERNAME');
 $envPass = getenv('ADMIN_PASSWORD');
 
-// Ensure storage directory exists
-if (!is_dir(STORAGE_PATH)) {
-    if (!mkdir(STORAGE_PATH, DIR_PERMISSIONS, true) && !is_dir(STORAGE_PATH)) {
-        $error = 'System configuration error. Please contact administrator.';
-        error_log("Failed to create storage directory: " . STORAGE_PATH);
-    }
-}
-
-// Load credentials from secure location or bootstrap from env vars
-if (file_exists($credentialsFile) && is_readable($credentialsFile)) {
+if (file_exists($credentialsFile)) {
     $contents = file_get_contents($credentialsFile);
-    
-    if ($contents === false) {
-        $error = 'System configuration error. Please contact administrator.';
-        error_log("Unable to read admin credentials file: $credentialsFile");
-    } else {
+    if ($contents) {
         $decoded = json_decode($contents, true);
-        
-        if (
-            is_array($decoded) &&
-            isset($decoded['username'], $decoded['password']) &&
-            trim($decoded['username']) !== '' &&
-            trim($decoded['password']) !== '' &&
-            json_last_error() === JSON_ERROR_NONE
-        ) {
-            $credentials = [
-                'username' => trim($decoded['username']),
-                'password' => $decoded['password']
-            ];
-        } else {
-            $error = 'System configuration error. Please contact administrator.';
-            error_log("Admin credentials file is invalid");
+        if (is_array($decoded) && isset($decoded['username'], $decoded['password'])) {
+            $credentials = $decoded;
         }
     }
-} elseif ($envUser && $envPass && trim($envUser) !== '' && trim($envPass) !== '') {
-    // Bootstrap from environment variables
+} elseif ($envUser && $envPass) {
     $credentials = [
         'username' => trim($envUser),
         'password' => password_hash(trim($envPass), PASSWORD_DEFAULT)
     ];
-    
-    if (file_put_contents($credentialsFile, json_encode($credentials, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX) === false) {
-        $error = 'System configuration error. Please contact administrator.';
-        error_log("Failed to write admin credentials file");
-    } else {
-        chmod($credentialsFile, FILE_PERMISSIONS);
-        error_log("Admin credentials file created successfully");
-    }
-} else {
-    $error = 'System not configured. Please set ADMIN_USERNAME and ADMIN_PASSWORD environment variables.';
-    error_log("Admin credentials not configured");
+    file_put_contents($credentialsFile, json_encode($credentials, JSON_PRETTY_PRINT), LOCK_EX);
+    chmod($credentialsFile, 0640);
 }
 
-// Check for brute force attempts
+if (!$credentials) {
+    $error = 'Admin credentials not configured. Set ADMIN_USERNAME and ADMIN_PASSWORD environment variables.';
+}
+
+// Brute force protection
+function checkLoginAttempts($ip) {
+    $attemptsFile = dirname(__DIR__) . '/storage/login_attempts_' . md5($ip) . '.json';
+    $maxAttempts = 5;
+    $lockoutTime = 900;
+    
+    if (!file_exists($attemptsFile)) return true;
+    
+    $data = json_decode(file_get_contents($attemptsFile), true);
+    if (!$data) return true;
+    
+    $attempts = $data['attempts'] ?? 0;
+    $lastAttempt = $data['timestamp'] ?? 0;
+    $now = time();
+    
+    if ($now - $lastAttempt > $lockoutTime) {
+        unlink($attemptsFile);
+        return true;
+    }
+    
+    if ($attempts >= $maxAttempts) {
+        $remaining = ceil(($lockoutTime - ($now - $lastAttempt)) / 60);
+        return "Too many failed attempts. Try again in $remaining minutes.";
+    }
+    
+    return true;
+}
+
+function recordFailedLogin($ip) {
+    $attemptsFile = dirname(__DIR__) . '/storage/login_attempts_' . md5($ip) . '.json';
+    $data = ['attempts' => 1, 'timestamp' => time()];
+    
+    if (file_exists($attemptsFile)) {
+        $existing = json_decode(file_get_contents($attemptsFile), true);
+        if ($existing) {
+            $data['attempts'] = ($existing['attempts'] ?? 0) + 1;
+        }
+    }
+    
+    file_put_contents($attemptsFile, json_encode($data), LOCK_EX);
+    
+    // Log security event
+    $securityLog = dirname(__DIR__) . '/storage/logs/security.log';
+    if (!is_dir(dirname($securityLog))) {
+        mkdir(dirname($securityLog), 0750, true);
+    }
+    $entry = sprintf("[%s] FAILED_LOGIN | IP: %s | Attempts: %d\n", date('Y-m-d H:i:s'), $ip, $data['attempts']);
+    file_put_contents($securityLog, $entry, FILE_APPEND | LOCK_EX);
+}
+
+function clearLoginAttempts($ip) {
+    $attemptsFile = dirname(__DIR__) . '/storage/login_attempts_' . md5($ip) . '.json';
+    if (file_exists($attemptsFile)) {
+        unlink($attemptsFile);
+    }
+}
+
 $attemptCheck = checkLoginAttempts($_SERVER['REMOTE_ADDR']);
 if ($attemptCheck !== true) {
     $error = $attemptCheck;
 }
 
-// Handle login form submission
+// Handle login
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $credentials && $attemptCheck === true) {
-    $username = isset($_POST['username']) ? trim($_POST['username']) : '';
-    $password = isset($_POST['password']) ? trim($_POST['password']) : '';
+    $username = trim($_POST['username'] ?? '');
+    $password = trim($_POST['password'] ?? '');
     
-    // Basic input validation
-    if (empty($username) || empty($password)) {
-        $error = 'Username and password are required';
-        recordFailedLogin($_SERVER['REMOTE_ADDR'], $username);
-    } elseif ($username === $credentials['username']) {
-        $storedPassword = $credentials['password'];
+    if ($username === $credentials['username'] && password_verify($password, $credentials['password'])) {
+        clearLoginAttempts($_SERVER['REMOTE_ADDR']);
+        session_regenerate_id(true);
         
-        // Check if password is already hashed or plain text
-        $passwordIsHash = password_get_info($storedPassword)['algo'] !== 0;
-        $verified = $passwordIsHash 
-            ? password_verify($password, $storedPassword) 
-            : hash_equals($storedPassword, $password);
+        $_SESSION['admin_logged_in'] = true;
+        $_SESSION['admin_username'] = $username;
+        $_SESSION['last_activity'] = time();
         
-        if ($verified) {
-            // Upgrade plain text password to hash if needed
-            if (!$passwordIsHash) {
-                $credentials['password'] = password_hash($storedPassword, PASSWORD_DEFAULT);
-                file_put_contents(
-                    $credentialsFile,
-                    json_encode($credentials, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
-                    LOCK_EX
-                );
-                chmod($credentialsFile, FILE_PERMISSIONS);
-                error_log("Admin password upgraded to hash for user: $username");
-            }
-            
-            // Successful login
-            clearLoginAttempts($_SERVER['REMOTE_ADDR']);
-            
-            // Regenerate session ID to prevent fixation
-            session_regenerate_id(true);
-            
-            // Set session variables
-            $_SESSION['admin_logged_in'] = true;
-            $_SESSION['admin_username'] = $username;
-            $_SESSION['last_activity'] = time();
-            $_SESSION['session_token'] = generateToken(32);
-            $_SESSION['login_ip'] = $_SERVER['REMOTE_ADDR'];
-            $_SESSION['login_time'] = date('Y-m-d H:i:s');
-            
-            logSecurityEvent('ADMIN_LOGIN_SUCCESS', [
-                'username' => $username,
-                'ip' => $_SERVER['REMOTE_ADDR']
-            ]);
-            
-            header('Location: dashboard.php');
-            exit;
-        } else {
-            $error = 'Invalid username or password';
-            recordFailedLogin($_SERVER['REMOTE_ADDR'], $username);
-        }
+        // Log successful login
+        $securityLog = dirname(__DIR__) . '/storage/logs/security.log';
+        $entry = sprintf("[%s] LOGIN_SUCCESS | IP: %s | User: %s\n", date('Y-m-d H:i:s'), $_SERVER['REMOTE_ADDR'], $username);
+        file_put_contents($securityLog, $entry, FILE_APPEND | LOCK_EX);
+        
+        header('Location: dashboard.php');
+        exit;
     } else {
+        recordFailedLogin($_SERVER['REMOTE_ADDR']);
         $error = 'Invalid username or password';
-        recordFailedLogin($_SERVER['REMOTE_ADDR'], $username);
     }
-} elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && !$credentials && !$error) {
-    $error = 'System configuration error. Please contact administrator.';
 }
 
-// Show timeout message
 if ($timeout) {
     $error = 'Your session has expired. Please log in again.';
 }
@@ -285,10 +246,6 @@ if ($timeout) {
             box-shadow: 0 6px 20px rgba(0, 229, 255, 0.4);
         }
         
-        .btn-primary:active {
-            transform: translateY(0);
-        }
-        
         .btn-primary:disabled {
             opacity: 0.5;
             cursor: not-allowed;
@@ -341,9 +298,7 @@ if ($timeout) {
                         name="username" 
                         required 
                         autofocus
-                        autocomplete="username"
-                        <?php echo $attemptCheck !== true ? 'disabled' : ''; ?>
-                    >
+                        <?php echo $attemptCheck !== true ? 'disabled' : ''; ?>>
                 </div>
                 
                 <div class="form-group">
@@ -353,22 +308,19 @@ if ($timeout) {
                         id="password" 
                         name="password" 
                         required
-                        autocomplete="current-password"
-                        <?php echo $attemptCheck !== true ? 'disabled' : ''; ?>
-                    >
+                        <?php echo $attemptCheck !== true ? 'disabled' : ''; ?>>
                 </div>
                 
                 <button 
                     type="submit" 
                     class="btn-primary"
-                    <?php echo $attemptCheck !== true ? 'disabled' : ''; ?>
-                >
+                    <?php echo $attemptCheck !== true ? 'disabled' : ''; ?>>
                     <?php echo $attemptCheck !== true ? 'Locked' : 'Login'; ?>
                 </button>
             </form>
             
             <div class="security-notice">
-                🔒 This is a secure area. All access attempts are logged.
+                🔒 All access attempts are logged
             </div>
         </div>
     </div>
