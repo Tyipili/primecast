@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Thank You - PrimeCast</title>
+    <meta name="description" content="Thank you for your PrimeCast order">
+    <meta name="robots" content="noindex, nofollow">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -14,13 +16,13 @@
                 <div class="logo">
                     <img src="images/logo.png" alt="PrimeCast Logo" style="height: 45px; width: auto;">
                 </div>
-                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle mobile menu">
                     <span></span>
                     <span></span>
                     <span></span>
                 </button>
                 <ul class="nav-menu" id="navMenu">
-                    <li><a href="index.html" class="active">Home</a></li>
+                    <li><a href="index.html">Home</a></li>
                     <li><a href="channels.html">Channels</a></li>
                     <li><a href="pricing.html">Pricing</a></li>
                     <li><a href="faq.html">FAQ</a></li>
@@ -33,24 +35,32 @@
     <div class="thank-you-container">
         <div class="thank-you-icon">🎉</div>
         <h1>Thank You for Your Order!</h1>
-        <p>Your payment has been received successfully.</p>
-        <p>You will receive a confirmation email shortly with your login credentials and setup instructions.</p>
+        <p>Your order has been received successfully.</p>
         
         <div style="background: rgba(0, 229, 255, 0.1); border: 1px solid var(--neon-blue); border-radius: 12px; padding: 25px; margin: 40px 0;">
-            <h3 style="color: var(--gold); margin-bottom: 15px;">What's Next?</h3>
+            <h3 style="color: var(--gold); margin-bottom: 15px;">What Happens Next?</h3>
+            <p style="color: var(--text-light); text-align: left; margin-bottom: 15px;">
+                <strong>We'll send login details after verifying your e-transfer</strong>
+            </p>
             <ul style="list-style-position: inside; color: var(--text-light); text-align: left;">
-                <li style="margin-bottom: 10px;">Check your email inbox (and spam folder) for confirmation</li>
-                <li style="margin-bottom: 10px;">Our team will process your order within 1-4 hours</li>
-                <li style="margin-bottom: 10px;">You'll receive login credentials and setup instructions</li>
+                <li style="margin-bottom: 10px;">Check your email inbox (and spam folder) for order confirmation</li>
+                <li style="margin-bottom: 10px;">Our team will verify your e-transfer payment</li>
+                <li style="margin-bottom: 10px;">You'll receive login credentials within 1-4 hours</li>
                 <li>Start enjoying premium IPTV streaming!</li>
             </ul>
         </div>
 
         <div style="background: rgba(196, 155, 42, 0.1); border: 1px solid var(--gold); border-radius: 12px; padding: 25px; margin: 30px 0;">
+            <h3 style="color: var(--gold); margin-bottom: 15px;">📧 Important</h3>
+            <p>Your login credentials will be sent to the email address you provided.</p>
+            <p style="margin-top: 15px;">Processing typically takes 1-4 hours during business hours.</p>
+        </div>
+
+        <div style="background: rgba(196, 155, 42, 0.1); border: 1px solid var(--gold); border-radius: 12px; padding: 25px; margin: 30px 0;">
             <h3 style="color: var(--gold); margin-bottom: 15px;">Need Help?</h3>
-            <p>If you have any questions or don't receive your credentials within 4 hours, please contact us:</p>
+            <p>If you don't receive your credentials within 4 hours, or have any questions, please contact us:</p>
             <p style="font-size: 1.2rem; color: var(--neon-blue); margin-top: 15px;">
-                <strong>info@primecast.world</strong>
+                <strong><a href="mailto:info@primecast.world" style="color: var(--neon-blue); text-decoration: none;">info@primecast.world</a></strong>
             </p>
         </div>
 
@@ -92,5 +102,3 @@
     <script src="js/main.js"></script>
 </body>
 </html>
-
-
