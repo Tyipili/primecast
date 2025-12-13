@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Checkout - PrimeCast</title>
-    <meta name="description" content="Complete your PrimeCast IPTV subscription purchase securely">
+    <meta name="description" content="Complete your PrimeCast IPTV subscription purchase">
     <meta name="robots" content="noindex, nofollow">
     <link rel="stylesheet" href="css/style.css">
-    <!-- PayPal SDK - IMPORTANT: Replace YOUR_CLIENT_ID_HERE with your actual PayPal Client ID -->
-    <script src="https://www.paypal.com/sdk/js?client-id=YOUR_CLIENT_ID_HERE&currency=USD"></script>
 </head>
 <body>
     <!-- Navigation -->
@@ -44,8 +42,8 @@
         <!-- Important Notice -->
         <div class="info-box" style="background: rgba(196, 155, 42, 0.1); border-color: var(--gold);">
             <h3 style="color: var(--gold); margin-bottom: 15px;">📧 Login Information</h3>
-            <p>Your login information will be emailed to you after successful payment.</p>
-            <p>Our activation team typically processes orders within 1-4 hours.</p>
+            <p>Your login information will be emailed to you after we verify your e-transfer payment.</p>
+            <p>Our team typically processes orders within 1-4 hours.</p>
         </div>
 
         <!-- Order Summary -->
@@ -67,39 +65,43 @@
             </div>
         </div>
 
-        <!-- Payment Options -->
+        <!-- E-transfer Payment Instructions -->
         <div class="checkout-section">
-            <h2>Select Payment Method</h2>
+            <h2>🏦 Pay with Interac E-transfer (Canada)</h2>
             
-            <!-- PayPal Option -->
             <div class="payment-method">
-                <h3>💳 Pay with PayPal or Credit Card</h3>
-                <p style="color: var(--text-gray); margin-bottom: 20px;">
-                    Secure payment processing through PayPal. You don't need a PayPal account to use your credit card.
-                </p>
-                <div id="paypal-button-container"></div>
-                <div id="paypal-loading" style="display: none; text-align: center; padding: 20px; color: var(--neon-blue);">
-                    Processing payment... Please wait.
-                </div>
-            </div>
-            
-            <!-- E-transfer Option -->
-            <div class="payment-method">
-                <h3>🏦 Pay with Interac E-transfer (Canada)</h3>
-                <p style="color: var(--text-gray); margin-bottom: 20px;">
-                    Send e-transfer to complete your order. Include your order reference in the message.
-                </p>
+                <h3 style="color: var(--gold); margin-bottom: 20px;">Payment Instructions</h3>
                 
-                <div class="info-box">
-                    <p><strong>E-transfer Details:</strong></p>
-                    <div class="email-copy">
+                <div class="info-box" style="margin-bottom: 25px;">
+                    <p><strong>Step 1: Send E-transfer</strong></p>
+                    <div class="email-copy" style="margin: 15px 0;">
                         <input type="text" id="etransferEmail" value="info@primecast.world" readonly aria-label="E-transfer email address">
                         <button class="btn-copy" onclick="copyEmail()" id="copyEmailBtn">Copy Email</button>
                     </div>
-                    <p style="margin-top: 15px;"><strong>Important:</strong> Please include your order reference number in the e-transfer message.</p>
+                    <p style="margin-top: 15px;"><strong>Step 2: Include your order reference in the e-transfer message:</strong></p>
+                    <div class="reference-display" style="font-size: 1.1rem; margin-top: 10px;">
+                        <span id="orderReferenceDisplay">PC-xxxxx</span>
+                        <button class="btn-copy" onclick="copyReference()" id="copyRefBtn" style="margin-left: 10px; padding: 8px 16px; font-size: 0.9rem;">Copy Reference</button>
+                    </div>
+                    <p style="margin-top: 15px;"><strong>Step 3: Complete the transfer and save your confirmation number</strong></p>
+                    <p style="margin-top: 15px;"><strong>Step 4: Fill out the form below with your confirmation number</strong></p>
                 </div>
 
                 <form id="etransferForm" style="margin-top: 25px;">
+                    <div class="form-group">
+                        <label for="customerName">Your Name *</label>
+                        <input 
+                            type="text" 
+                            id="customerName" 
+                            name="customerName"
+                            placeholder="John Doe" 
+                            required
+                            minlength="2"
+                            maxlength="100"
+                            aria-required="true">
+                        <span class="error-message-inline" id="nameError" style="display: none;"></span>
+                    </div>
+
                     <div class="form-group">
                         <label for="customerEmail">Your Email Address *</label>
                         <input 
@@ -111,12 +113,33 @@
                             aria-required="true">
                         <span class="error-message-inline" id="emailError" style="display: none;"></span>
                     </div>
+
+                    <div class="form-group">
+                        <label for="etransferReference">E-transfer Reference Number *</label>
+                        <input 
+                            type="text" 
+                            id="etransferReference" 
+                            name="etransferReference"
+                            placeholder="Enter the confirmation number from your e-transfer" 
+                            required
+                            minlength="3"
+                            maxlength="100"
+                            aria-required="true">
+                        <span class="error-message-inline" id="referenceError" style="display: none;"></span>
+                        <small style="color: var(--text-gray); display: block; margin-top: 5px;">
+                            This is the confirmation number you received after sending the e-transfer
+                        </small>
+                    </div>
+
                     <input type="hidden" id="selectedPlan" value="">
+                    <input type="hidden" id="planAmount" value="">
+                    <input type="hidden" id="orderRef" value="">
+                    
                     <button type="submit" class="btn btn-primary" id="etransferSubmitBtn" style="width: 100%;">
-                        I've Sent the E-transfer
+                        Submit Order
                     </button>
                     <p style="text-align: center; color: var(--text-gray); margin-top: 15px; font-size: 14px;">
-                        You'll receive a confirmation email once we verify your payment
+                        You'll receive login credentials via email within 1-4 hours after we verify your payment
                     </p>
                 </form>
             </div>
@@ -124,7 +147,7 @@
 
         <!-- Security Notice -->
         <div class="info-box" style="margin-top: 30px;">
-            <p style="text-align: center;">🔒 Your payment information is secure and encrypted</p>
+            <p style="text-align: center;">🔒 Your information is secure and encrypted</p>
         </div>
     </div>
 
@@ -162,28 +185,25 @@
 
     <script src="js/main.js"></script>
     <script>
-        // Plan configuration - MUST match config.php EXACTLY
+        // Plan configuration
         const plans = {
             'basic': { 
                 name: 'Basic Plan (1 Month)', 
                 duration: '1 Month', 
                 price: '$25', 
-                value: '25.00',
-                planId: 'basic'
+                value: '25.00'
             },
             'standard': { 
                 name: 'Standard Plan (3 Months)', 
                 duration: '3 Months', 
                 price: '$60', 
-                value: '60.00',
-                planId: 'standard'
+                value: '60.00'
             },
             'premium': { 
                 name: 'Premium Plan (12 Months)', 
                 duration: '12 Months', 
                 price: '$150', 
-                value: '150.00',
-                planId: 'premium'
+                value: '150.00'
             }
         };
 
@@ -202,219 +222,198 @@
         document.getElementById('planDuration').textContent = plans[plan].duration;
         document.getElementById('planPrice').textContent = plans[plan].price;
         document.getElementById('selectedPlan').value = plans[plan].name;
-        
-        // Initialize PayPal button for selected plan
-        if (window.paypal) {
-            paypal.Buttons({
-                createOrder: function(data, actions) {
-                    return actions.order.create({
-                        purchase_units: [{
-                            description: `PrimeCast ${plans[plan].name}`,
-                            amount: {
-                                value: plans[plan].value,
-                                currency_code: 'USD'
-                            }
-                        }]
-                    });
-                },
-                onApprove: async function(data, actions) {
-                    // Show loading
-                    const paypalContainer = document.getElementById('paypal-button-container');
-                    const loadingDiv = document.getElementById('paypal-loading');
-                    paypalContainer.style.display = 'none';
-                    loadingDiv.style.display = 'block';
-                    
-                    try {
-                        const order = await actions.order.capture();
-                        
-                        // Validate order data
-                        if (!order || !order.payer || !order.payer.email_address) {
-                            throw new Error('Invalid order data received from PayPal');
-                        }
-                        
-                        if (!order.id) {
-                            throw new Error('Missing transaction ID');
-                        }
-                        
-                        const email = order.payer.email_address;
-                        const reference = sessionStorage.getItem('orderReference') || generateReference();
-                        
-                        // Send to activation script
-                        const response = await fetch('php/activate.php', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                email: email,
-                                plan: plans[plan].planId,
-                                reference: reference,
-                                transaction_id: order.id,
-                                amount: plans[plan].value,
-                                payment_method: 'paypal'
-                            })
-                        });
-                        
-                        const result = await response.json();
-                        
-                        if (response.ok && result.success) {
-                            window.location.href = 'thankyou.html';
-                        } else {
-                            throw new Error(result.error || 'Server validation failed');
-                        }
-                    } catch (error) {
-                        console.error('Payment processing error:', error);
-                        
-                        // Show error to user
-                        alert('Payment was captured but there was an issue with verification. Our team will contact you shortly at the email you provided. Please save your transaction details.');
-                        
-                        // Restore PayPal button
-                        paypalContainer.style.display = 'block';
-                        loadingDiv.style.display = 'none';
-                        
-                        // Log for debugging
-                        console.error('Full error details:', {
-                            error: error.message,
-                            plan: plan,
-                            reference: sessionStorage.getItem('orderReference')
-                        });
-                    }
-                },
-                onError: function(err) {
-                    console.error('PayPal Error:', err);
-                    alert('There was an error processing your payment. Please try again or use E-transfer. If the problem persists, contact us at info@primecast.world');
-                },
-                onCancel: function(data) {
-                    console.log('Payment cancelled by user');
-                    alert('Payment cancelled. You can try again when ready.');
-                }
-            }).render('#paypal-button-container');
-        } else {
-            document.getElementById('paypal-button-container').innerHTML = 
-                '<div style="color: #ff6b6b; padding: 20px; text-align: center; border: 1px solid #ff6b6b; border-radius: 8px;">' +
-                'PayPal SDK failed to load. Please refresh the page or contact support.' +
-                '</div>';
-            console.error('PayPal SDK not loaded. Check your Client ID in the script tag.');
-        }
+        document.getElementById('planAmount').value = plans[plan].value;
+
+        // Generate and display order reference
+        const reference = generateReference();
+        sessionStorage.setItem('orderReference', reference);
+        document.getElementById('orderReference').textContent = reference;
+        document.getElementById('orderReferenceDisplay').textContent = reference;
+        document.getElementById('orderRef').value = reference;
 
         // Copy email function
         function copyEmail() {
             const emailInput = document.getElementById('etransferEmail');
-            if (emailInput) {
-                emailInput.select();
-                emailInput.setSelectionRange(0, 99999); // For mobile
+            emailInput.select();
+            emailInput.setSelectionRange(0, 99999);
+            
+            navigator.clipboard.writeText(emailInput.value).then(() => {
+                const copyBtn = document.getElementById('copyEmailBtn');
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = '✓ Copied!';
+                copyBtn.style.background = '#4CAF50';
                 
-                navigator.clipboard.writeText(emailInput.value).then(() => {
-                    const copyBtn = document.getElementById('copyEmailBtn');
-                    const originalText = copyBtn.textContent;
-                    copyBtn.textContent = '✓ Copied!';
-                    copyBtn.style.background = '#4CAF50';
-                    
-                    setTimeout(() => {
-                        copyBtn.textContent = originalText;
-                        copyBtn.style.background = '';
-                    }, 2000);
-                }).catch(err => {
-                    alert('Failed to copy. Please manually copy: info@primecast.world');
-                });
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.style.background = '';
+                }, 2000);
+            }).catch(err => {
+                alert('Failed to copy. Please manually copy: info@primecast.world');
+            });
+        }
+
+        // Copy reference function
+        function copyReference() {
+            const reference = document.getElementById('orderReferenceDisplay').textContent;
+            
+            navigator.clipboard.writeText(reference).then(() => {
+                const copyBtn = document.getElementById('copyRefBtn');
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = '✓ Copied!';
+                copyBtn.style.background = '#4CAF50';
+                
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.style.background = '';
+                }, 2000);
+            }).catch(err => {
+                alert('Failed to copy. Please manually copy: ' + reference);
+            });
+        }
+
+        // Form validation
+        function validateName() {
+            const input = document.getElementById('customerName');
+            const error = document.getElementById('nameError');
+            const value = input.value.trim();
+            
+            if (!value) {
+                input.classList.add('error');
+                error.textContent = 'Name is required';
+                error.style.display = 'block';
+                return false;
+            } else if (value.length < 2) {
+                input.classList.add('error');
+                error.textContent = 'Name must be at least 2 characters';
+                error.style.display = 'block';
+                return false;
+            } else {
+                input.classList.remove('error');
+                input.classList.add('success');
+                error.style.display = 'none';
+                return true;
             }
         }
 
-        // E-transfer form validation and submission
-        const etransferForm = document.getElementById('etransferForm');
-        if (etransferForm) {
-            const emailInput = document.getElementById('customerEmail');
-            const emailError = document.getElementById('emailError');
+        function validateEmail() {
+            const input = document.getElementById('customerEmail');
+            const error = document.getElementById('emailError');
+            const value = input.value.trim();
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             
-            // Real-time email validation
-            emailInput.addEventListener('blur', function() {
-                validateEmailField();
-            });
+            if (!value) {
+                input.classList.add('error');
+                error.textContent = 'Email is required';
+                error.style.display = 'block';
+                return false;
+            } else if (!emailRegex.test(value)) {
+                input.classList.add('error');
+                error.textContent = 'Please enter a valid email address';
+                error.style.display = 'block';
+                return false;
+            } else {
+                input.classList.remove('error');
+                input.classList.add('success');
+                error.style.display = 'none';
+                return true;
+            }
+        }
+
+        function validateReference() {
+            const input = document.getElementById('etransferReference');
+            const error = document.getElementById('referenceError');
+            const value = input.value.trim();
             
-            emailInput.addEventListener('input', function() {
+            if (!value) {
+                input.classList.add('error');
+                error.textContent = 'E-transfer reference is required';
+                error.style.display = 'block';
+                return false;
+            } else if (value.length < 3) {
+                input.classList.add('error');
+                error.textContent = 'Please enter a valid confirmation number';
+                error.style.display = 'block';
+                return false;
+            } else {
+                input.classList.remove('error');
+                input.classList.add('success');
+                error.style.display = 'none';
+                return true;
+            }
+        }
+
+        // Real-time validation
+        document.getElementById('customerName').addEventListener('blur', validateName);
+        document.getElementById('customerEmail').addEventListener('blur', validateEmail);
+        document.getElementById('etransferReference').addEventListener('blur', validateReference);
+
+        // Clear errors on input
+        ['customerName', 'customerEmail', 'etransferReference'].forEach(id => {
+            document.getElementById(id).addEventListener('input', function() {
                 if (this.classList.contains('error')) {
-                    validateEmailField();
+                    this.classList.remove('error');
+                    document.getElementById(id.replace('customer', '').replace('etransfer', '').toLowerCase() + 'Error').style.display = 'none';
                 }
             });
+        });
+
+        // Form submission
+        document.getElementById('etransferForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
             
-            function validateEmailField() {
-                const email = emailInput.value.trim();
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                
-                if (!email) {
-                    emailInput.classList.add('error');
-                    emailError.textContent = 'Email is required';
-                    emailError.style.display = 'block';
-                    return false;
-                } else if (!emailRegex.test(email)) {
-                    emailInput.classList.add('error');
-                    emailError.textContent = 'Please enter a valid email address';
-                    emailError.style.display = 'block';
-                    return false;
-                } else {
-                    emailInput.classList.remove('error');
-                    emailInput.classList.add('success');
-                    emailError.style.display = 'none';
-                    return true;
-                }
+            // Validate all fields
+            const nameValid = validateName();
+            const emailValid = validateEmail();
+            const referenceValid = validateReference();
+            
+            if (!nameValid || !emailValid || !referenceValid) {
+                alert('Please fix the errors above before submitting.');
+                return;
             }
             
-            etransferForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
+            const submitBtn = document.getElementById('etransferSubmitBtn');
+            const originalText = submitBtn.textContent;
+            
+            submitBtn.textContent = 'Processing...';
+            submitBtn.disabled = true;
+            submitBtn.classList.add('loading');
+            
+            const formData = {
+                name: document.getElementById('customerName').value.trim(),
+                email: document.getElementById('customerEmail').value.trim(),
+                plan: document.getElementById('selectedPlan').value,
+                amount: document.getElementById('planAmount').value,
+                order_reference: document.getElementById('orderRef').value,
+                etransfer_reference: document.getElementById('etransferReference').value.trim()
+            };
+            
+            try {
+                const response = await fetch('php/submit_order.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
                 
-                // Validate email
-                if (!validateEmailField()) {
-                    emailInput.focus();
-                    return;
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    window.location.href = 'thankyou.html';
+                } else {
+                    alert(result.error || 'There was an issue submitting your order. Please contact us at info@primecast.world');
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('loading');
                 }
-                
-                const submitBtn = document.getElementById('etransferSubmitBtn');
-                const originalText = submitBtn.textContent;
-                
-                const email = emailInput.value.trim();
-                const planName = document.getElementById('selectedPlan').value;
-                const reference = sessionStorage.getItem('orderReference') || generateReference();
-                
-                // Disable button and show loading
-                submitBtn.textContent = 'Processing...';
-                submitBtn.disabled = true;
-                submitBtn.classList.add('loading');
-                
-                try {
-                    const response = await fetch('php/activate.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            email: email,
-                            plan: plans[plan].planId,
-                            reference: reference,
-                            transaction_id: reference, // Use reference as transaction ID for e-transfers
-                            amount: plans[plan].value,
-                            payment_method: 'etransfer'
-                        })
-                    });
-                    
-                    const result = await response.json();
-                    
-                    if (response.ok && result.success) {
-                        window.location.href = 'thankyou.html';
-                    } else {
-                        alert(result.error || 'There was an issue submitting your order. Please contact us at info@primecast.world with your order reference: ' + reference);
-                        submitBtn.textContent = originalText;
-                        submitBtn.disabled = false;
-                        submitBtn.classList.remove('loading');
-                    }
-                } catch (error) {
-                    console.error('E-transfer submission error:', error);
-                    alert('Your order has been received. You will receive a confirmation email shortly. Order reference: ' + reference);
-                    setTimeout(() => {
-                        window.location.href = 'thankyou.html';
-                    }, 2000);
-                }
-            });
-        }
+            } catch (error) {
+                console.error('Order submission error:', error);
+                alert('There was an error processing your order. Please contact us at info@primecast.world with your order reference: ' + formData.order_reference);
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('loading');
+            }
+        });
     </script>
 </body>
 </html>
