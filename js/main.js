@@ -1,4 +1,4 @@
-// PrimeCast Main JavaScript - Secure Version
+// PrimeCast Main JavaScript - E-transfer Only Version
 
 // ============================================
 // UTILITY FUNCTIONS
@@ -39,11 +39,8 @@ const navMenu = document.getElementById('navMenu');
 
 if (mobileMenuBtn && navMenu) {
     mobileMenuBtn.addEventListener('click', () => {
-        const isOpen = navMenu.classList.toggle('active');
+        navMenu.classList.toggle('active');
         mobileMenuBtn.classList.toggle('active');
-        
-        // Save state
-        sessionStorage.setItem('menuOpen', isOpen);
     });
 }
 
@@ -54,7 +51,6 @@ navLinks.forEach(link => {
         if (window.innerWidth <= 768) {
             navMenu.classList.remove('active');
             mobileMenuBtn.classList.remove('active');
-            sessionStorage.setItem('menuOpen', 'false');
         }
     });
 });
@@ -119,25 +115,6 @@ faqItems.forEach(item => {
 });
 
 // ============================================
-// ORDER REFERENCE GENERATION
-// ============================================
-
-document.addEventListener('DOMContentLoaded', () => {
-    const referenceDisplay = document.getElementById('orderReference');
-    if (referenceDisplay) {
-        // Generate or retrieve existing reference
-        let reference = sessionStorage.getItem('orderReference');
-        
-        if (!reference) {
-            reference = generateReference();
-            sessionStorage.setItem('orderReference', reference);
-        }
-        
-        referenceDisplay.textContent = reference;
-    }
-});
-
-// ============================================
 // CONTACT FORM SUBMISSION (WITH CSRF)
 // ============================================
 
@@ -157,10 +134,10 @@ if (contactForm) {
         if (errorMessage) errorMessage.style.display = 'none';
         
         // Validate all fields
-        const nameValid = validateName ? validateName() : true;
-        const emailValid = validateEmail ? validateEmail() : true;
-        const subjectValid = validateSubject ? validateSubject() : true;
-        const messageValid = validateMessage ? validateMessage() : true;
+        const nameValid = typeof validateName === 'function' ? validateName() : true;
+        const emailValid = typeof validateEmail === 'function' ? validateEmail() : true;
+        const subjectValid = typeof validateSubject === 'function' ? validateSubject() : true;
+        const messageValid = typeof validateMessage === 'function' ? validateMessage() : true;
         
         if (!nameValid || !emailValid || !subjectValid || !messageValid) {
             if (errorMessage && errorText) {
@@ -288,111 +265,6 @@ document.querySelectorAll('.feature-card, .pricing-card').forEach(el => {
 });
 
 // ============================================
-// PRICING PAGE - UPDATE LINKS TO USE CORRECT PLAN IDS
-// ============================================
-
-document.addEventListener('DOMContentLoaded', () => {
-    // This ensures pricing page links match backend expectations
-    const pricingLinks = document.querySelectorAll('a[href*="checkout.html?plan="]');
-    
-    pricingLinks.forEach(link => {
-        const href = link.getAttribute('href');
-        
-        // Map old plan IDs to new ones if needed
-        if (href.includes('1month')) {
-            link.setAttribute('href', 'checkout.html?plan=basic');
-        } else if (href.includes('3month')) {
-            link.setAttribute('href', 'checkout.html?plan=standard');
-        } else if (href.includes('12month')) {
-            link.setAttribute('href', 'checkout.html?plan=premium');
-        }
-    });
-});
-
-// ============================================
-// COPY EMAIL FUNCTION (FOR CHECKOUT PAGE)
-// ============================================
-
-function copyEmail() {
-    const emailInput = document.getElementById('etransferEmail');
-    if (emailInput) {
-        emailInput.select();
-        emailInput.setSelectionRange(0, 99999); // For mobile
-        
-        navigator.clipboard.writeText(emailInput.value).then(() => {
-            const copyBtn = document.getElementById('copyEmailBtn');
-            if (copyBtn) {
-                const originalText = copyBtn.textContent;
-                copyBtn.textContent = '✓ Copied!';
-                copyBtn.style.background = '#4CAF50';
-                
-                setTimeout(() => {
-                    copyBtn.textContent = originalText;
-                    copyBtn.style.background = '';
-                }, 2000);
-            }
-        }).catch(err => {
-            console.error('Failed to copy:', err);
-            alert('Failed to copy. Please manually copy: info@primecast.world');
-        });
-    }
-}
-
-// ============================================
-// PERFORMANCE OPTIMIZATION
-// ============================================
-
-// Debounce function for scroll events
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// Apply debounce to scroll handler if needed
-if (navbar) {
-    const debouncedScroll = debounce(() => {
-        const currentScroll = window.pageYOffset;
-        if (currentScroll > 50) {
-            navbar.classList.add('scrolled');
-        } else {
-            navbar.classList.remove('scrolled');
-        }
-    }, 10);
-    
-    // Replace the existing scroll listener with debounced version
-    // (Already implemented above, this is just documentation)
-}
-
-// ============================================
-// ERROR LOGGING (DEVELOPMENT ONLY)
-// ============================================
-
-window.addEventListener('error', (e) => {
-    console.error('JavaScript Error:', {
-        message: e.message,
-        source: e.filename,
-        line: e.lineno,
-        column: e.colno,
-        error: e.error
-    });
-});
-
-// Log unhandled promise rejections
-window.addEventListener('unhandledrejection', (e) => {
-    console.error('Unhandled Promise Rejection:', {
-        reason: e.reason,
-        promise: e.promise
-    });
-});
-
-// ============================================
 // ACCESSIBILITY IMPROVEMENTS
 // ============================================
 
@@ -437,9 +309,18 @@ faqItems.forEach(item => {
 });
 
 // ============================================
-// CONSOLE MESSAGE (OPTIONAL)
+// ERROR LOGGING
 // ============================================
 
-console.log('%cPrimeCast', 'color: #C49B2A; font-size: 24px; font-weight: bold;');
-console.log('%cSecure IPTV Streaming Platform', 'color: #00E5FF; font-size: 14px;');
-console.log('%c© 2025 All Rights Reserved', 'color: #666; font-size: 12px;');
+window.addEventListener('error', (e) => {
+    console.error('JavaScript Error:', {
+        message: e.message,
+        source: e.filename,
+        line: e.lineno,
+        column: e.colno
+    });
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+    console.error('Unhandled Promise Rejection:', e.reason);
+});
