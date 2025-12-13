@@ -52,7 +52,7 @@ if (!$credentials) {
 function checkLoginAttempts($ip) {
     $attemptsFile = dirname(__DIR__) . '/storage/login_attempts_' . md5($ip) . '.json';
     $maxAttempts = 5;
-    $lockoutTime = 900;
+    $lockoutTime = 900; // 15 minutes
     
     if (!file_exists($attemptsFile)) return true;
     
@@ -101,7 +101,19 @@ function recordFailedLogin($ip) {
 function clearLoginAttempts($ip) {
     $attemptsFile = dirname(__DIR__) . '/storage/login_attempts_' . md5($ip) . '.json';
     if (file_exists($attemptsFile)) {
-        unlink($attemptsFile);
+        @unlink($attemptsFile);
+    }
+}
+
+function cleanOldLoginAttempts() {
+    $storageDir = dirname(__DIR__) . '/storage';
+    $files = glob($storageDir . '/login_attempts_*.json');
+    $now = time();
+    
+    foreach ($files as $file) {
+        if (filemtime($file) < ($now - 86400)) { // 24 hours old
+            @unlink($file);
+        }
     }
 }
 
@@ -117,6 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $credentials && $attemptCheck === t
     
     if ($username === $credentials['username'] && password_verify($password, $credentials['password'])) {
         clearLoginAttempts($_SERVER['REMOTE_ADDR']);
+        cleanOldLoginAttempts();
         session_regenerate_id(true);
         
         $_SESSION['admin_logged_in'] = true;
@@ -249,6 +262,7 @@ if ($timeout) {
         .btn-primary:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            transform: none;
         }
         
         .security-notice {
@@ -315,7 +329,7 @@ if ($timeout) {
                     type="submit" 
                     class="btn-primary"
                     <?php echo $attemptCheck !== true ? 'disabled' : ''; ?>>
-                    <?php echo $attemptCheck !== true ? 'Locked' : 'Login'; ?>
+                    <?php echo $attemptCheck !== true ? '🔒 Locked' : 'Login'; ?>
                 </button>
             </form>
             
