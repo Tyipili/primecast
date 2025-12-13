@@ -5,6 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Contact Us - PrimeCast</title>
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .success-message {
+            background: rgba(0, 229, 255, 0.1);
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            display: none;
+        }
+
+        .error-message {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid rgba(255, 0, 0, 0.3);
+            color: #ff6b6b;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .form-group input.error,
+        .form-group textarea.error {
+            border-color: #ff6b6b !important;
+        }
+
+        .form-group input.success,
+        .form-group textarea.success {
+            border-color: var(--neon-blue) !important;
+        }
+
+        .error-message-inline {
+            color: #ff6b6b;
+            font-size: 0.85rem;
+            margin-top: 5px;
+            display: none;
+        }
+    </style>
 </head>
 <body>
     <!-- Navigation -->
@@ -14,17 +53,17 @@
                 <div class="logo">
                     <img src="images/logo.png" alt="PrimeCast Logo" style="height: 45px; width: auto;">
                 </div>
-                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle mobile menu">
                     <span></span>
                     <span></span>
                     <span></span>
                 </button>
                 <ul class="nav-menu" id="navMenu">
-                    <li><a href="index.html" class="active">Home</a></li>
+                    <li><a href="index.html">Home</a></li>
                     <li><a href="channels.html">Channels</a></li>
                     <li><a href="pricing.html">Pricing</a></li>
                     <li><a href="faq.html">FAQ</a></li>
-                    <li><a href="contact.html">Contact</a></li>
+                    <li><a href="contact.html" class="active">Contact</a></li>
                 </ul>
             </div>
         </div>
@@ -56,28 +95,42 @@
                 <div style="background: rgba(26, 26, 26, 0.8); border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 16px; padding: 40px;">
                     <h2 style="color: var(--gold); margin-bottom: 30px; text-align: center;">Send Us a Message</h2>
                     
+                    <div id="successMessage" class="success-message" role="alert">
+                        ✅ Message sent successfully! We'll respond within 4 hours.
+                    </div>
+                    
+                    <div id="errorMessage" class="error-message" role="alert">
+                        <span id="errorText"></span>
+                    </div>
+                    
                     <form id="contactForm" class="contact-form">
                         <div class="form-group">
                             <label for="name">Your Name *</label>
-                            <input type="text" id="name" name="name" placeholder="John Doe" required>
+                            <input type="text" id="name" name="name" placeholder="John Doe" required minlength="2" maxlength="100" aria-required="true">
+                            <span class="error-message-inline" id="nameError"></span>
                         </div>
 
                         <div class="form-group">
                             <label for="email">Email Address *</label>
-                            <input type="email" id="email" name="email" placeholder="your@email.com" required>
+                            <input type="email" id="email" name="email" placeholder="your@email.com" required aria-required="true">
+                            <span class="error-message-inline" id="emailError"></span>
                         </div>
 
                         <div class="form-group">
                             <label for="subject">Subject *</label>
-                            <input type="text" id="subject" name="subject" placeholder="How can we help?" required>
+                            <input type="text" id="subject" name="subject" placeholder="How can we help?" required minlength="3" maxlength="200" aria-required="true">
+                            <span class="error-message-inline" id="subjectError"></span>
                         </div>
 
                         <div class="form-group">
                             <label for="message">Message *</label>
-                            <textarea id="message" name="message" placeholder="Tell us more about your inquiry..." required></textarea>
+                            <textarea id="message" name="message" placeholder="Tell us more about your inquiry..." required minlength="10" maxlength="5000" aria-required="true"></textarea>
+                            <span class="error-message-inline" id="messageError"></span>
                         </div>
 
-                        <button type="submit" class="btn btn-primary" style="width: 100%;">Send Message</button>
+                        <input type="hidden" id="csrfToken" name="csrf_token" value="">
+
+                        <button type="submit" class="btn btn-primary" id="submitBtn" style="width: 100%;">Send Message</button>
                     </form>
                 </div>
             </div>
@@ -117,8 +170,140 @@
     </footer>
 
     <script src="js/main.js"></script>
+    <script>
+        // Load CSRF token immediately
+        (async function loadCSRFToken() {
+            try {
+                const response = await fetch('php/get_csrf_token.php');
+                const data = await response.json();
+                
+                if (data.success && data.token) {
+                    document.getElementById('csrfToken').value = data.token;
+                } else {
+                    console.error('Failed to load CSRF token');
+                }
+            } catch (error) {
+                console.error('Failed to load CSRF token:', error);
+            }
+        })();
+
+        // Validation functions
+        function validateName() {
+            const input = document.getElementById('name');
+            const error = document.getElementById('nameError');
+            const value = input.value.trim();
+            
+            if (!value) {
+                input.classList.add('error');
+                input.classList.remove('success');
+                error.textContent = 'Name is required';
+                error.style.display = 'block';
+                return false;
+            } else if (value.length < 2) {
+                input.classList.add('error');
+                input.classList.remove('success');
+                error.textContent = 'Name must be at least 2 characters';
+                error.style.display = 'block';
+                return false;
+            } else {
+                input.classList.remove('error');
+                input.classList.add('success');
+                error.style.display = 'none';
+                return true;
+            }
+        }
+
+        function validateEmail() {
+            const input = document.getElementById('email');
+            const error = document.getElementById('emailError');
+            const value = input.value.trim();
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            
+            if (!value) {
+                input.classList.add('error');
+                input.classList.remove('success');
+                error.textContent = 'Email is required';
+                error.style.display = 'block';
+                return false;
+            } else if (!emailRegex.test(value)) {
+                input.classList.add('error');
+                input.classList.remove('success');
+                error.textContent = 'Please enter a valid email address';
+                error.style.display = 'block';
+                return false;
+            } else {
+                input.classList.remove('error');
+                input.classList.add('success');
+                error.style.display = 'none';
+                return true;
+            }
+        }
+
+        function validateSubject() {
+            const input = document.getElementById('subject');
+            const error = document.getElementById('subjectError');
+            const value = input.value.trim();
+            
+            if (!value) {
+                input.classList.add('error');
+                input.classList.remove('success');
+                error.textContent = 'Subject is required';
+                error.style.display = 'block';
+                return false;
+            } else if (value.length < 3) {
+                input.classList.add('error');
+                input.classList.remove('success');
+                error.textContent = 'Subject must be at least 3 characters';
+                error.style.display = 'block';
+                return false;
+            } else {
+                input.classList.remove('error');
+                input.classList.add('success');
+                error.style.display = 'none';
+                return true;
+            }
+        }
+
+        function validateMessage() {
+            const input = document.getElementById('message');
+            const error = document.getElementById('messageError');
+            const value = input.value.trim();
+            
+            if (!value) {
+                input.classList.add('error');
+                input.classList.remove('success');
+                error.textContent = 'Message is required';
+                error.style.display = 'block';
+                return false;
+            } else if (value.length < 10) {
+                input.classList.add('error');
+                input.classList.remove('success');
+                error.textContent = 'Message must be at least 10 characters';
+                error.style.display = 'block';
+                return false;
+            } else {
+                input.classList.remove('error');
+                input.classList.add('success');
+                error.style.display = 'none';
+                return true;
+            }
+        }
+
+        // Add real-time validation
+        document.getElementById('name').addEventListener('blur', validateName);
+        document.getElementById('email').addEventListener('blur', validateEmail);
+        document.getElementById('subject').addEventListener('blur', validateSubject);
+        document.getElementById('message').addEventListener('blur', validateMessage);
+
+        // Clear errors on input
+        ['name', 'email', 'subject', 'message'].forEach(id => {
+            document.getElementById(id).addEventListener('input', function() {
+                if (this.classList.contains('error')) {
+                    this.classList.remove('error');
+                    document.getElementById(id + 'Error').style.display = 'none';
+                }
+            });
+        });
+    </script>
 </body>
-
 </html>
-
-
