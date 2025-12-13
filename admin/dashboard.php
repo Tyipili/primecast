@@ -1,7 +1,7 @@
 <?php
 /**
  * PrimeCast Admin Dashboard
- * Simple order viewing interface
+ * Simple order viewing interface with search and pagination
  */
 
 // Simple session management
@@ -21,11 +21,19 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) >
 }
 $_SESSION['last_activity'] = time();
 
-// Handle logout
-if (isset($_GET['logout'])) {
-    session_destroy();
-    header('Location: login.php');
-    exit;
+// Generate CSRF token if not exists
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+// Handle logout with CSRF protection
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['logout'])) {
+    $csrfToken = $_POST['csrf_token'] ?? '';
+    if (hash_equals($_SESSION['csrf_token'], $csrfToken)) {
+        session_destroy();
+        header('Location: login.php');
+        exit;
+    }
 }
 
 // Read orders file
@@ -33,9 +41,14 @@ $ordersFile = dirname(__DIR__) . '/storage/orders.txt';
 $orders = [];
 $error = '';
 
+// Pagination settings
+$ordersPerPage = 50;
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$totalOrders = 0;
+$totalPages = 1;
+
 // Check if orders file exists
 if (!file_exists($ordersFile)) {
-    // This is normal - file is created when first order is submitted
     $error = 'No orders yet. Orders will appear here once customers submit their information.';
 } elseif (!is_readable($ordersFile)) {
     $error = 'Orders file exists but cannot be read. Check file permissions.';
@@ -45,28 +58,38 @@ if (!file_exists($ordersFile)) {
         $error = 'Unable to read orders file.';
     } else {
         $lines = explode("\n", trim($content));
+        $totalOrders = 0;
+        $allOrders = [];
+        
         foreach ($lines as $line) {
             if (empty($line)) continue;
             
-            // Parse: timestamp | email | order_ref | plan | etransfer_ref
+            // Parse: timestamp | email | order_ref | plan | etransfer_ref | status
             $parts = array_map('trim', explode('|', $line));
-            if (count($parts) === 5) {
-                $orders[] = [
+            if (count($parts) >= 5) {
+                $allOrders[] = [
                     'timestamp' => $parts[0],
                     'email' => $parts[1],
                     'order_ref' => $parts[2],
                     'plan' => $parts[3],
-                    'etransfer_ref' => $parts[4]
+                    'etransfer_ref' => $parts[4],
+                    'status' => $parts[5] ?? 'pending'
                 ];
             }
         }
+        
         // Reverse to show newest first
-        $orders = array_reverse($orders);
+        $allOrders = array_reverse($allOrders);
+        $totalOrders = count($allOrders);
+        $totalPages = ceil($totalOrders / $ordersPerPage);
+        
+        // Get current page orders
+        $offset = ($page - 1) * $ordersPerPage;
+        $orders = array_slice($allOrders, $offset, $ordersPerPage);
     }
 }
 
 // Calculate statistics
-$totalOrders = count($orders);
 $todayOrders = 0;
 $today = date('Y-m-d');
 
@@ -157,6 +180,7 @@ foreach ($orders as $order) {
             font-weight: 600;
             transition: all 0.3s ease;
             font-size: 0.9rem;
+            background: transparent;
         }
         
         .refresh-btn {
@@ -242,6 +266,27 @@ foreach ($orders as $order) {
             border: 1px solid rgba(0, 229, 255, 0.25);
         }
         
+        .search-box {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            color: #fff;
+            border-radius: 8px;
+            font-size: 0.95rem;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.1);
+        }
+        
         .table-message {
             padding: 40px;
             text-align: center;
@@ -289,6 +334,35 @@ foreach ($orders as $order) {
             color: var(--neon-blue);
         }
         
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            padding: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        
+        .pagination a {
+            padding: 8px 16px;
+            background: rgba(0, 229, 255, 0.1);
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            color: var(--neon-blue);
+            text-decoration: none;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        
+        .pagination a:hover {
+            background: rgba(0, 229, 255, 0.2);
+        }
+        
+        .pagination .current {
+            background: var(--neon-blue);
+            color: var(--dark-bg);
+            font-weight: 600;
+        }
+        
         @media (max-width: 768px) {
             .admin-header {
                 flex-direction: column;
@@ -319,9 +393,12 @@ foreach ($orders as $order) {
                 <button onclick="location.reload()" class="btn refresh-btn" aria-label="Refresh dashboard">
                     🔄 Refresh
                 </button>
-                <button onclick="if(confirm('Are you sure you want to logout?')) window.location.href='?logout=1'" class="btn logout-btn" aria-label="Log out">
-                    🚪 Logout
-                </button>
+                <form method="POST" style="display: inline; margin: 0;">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <button type="submit" name="logout" value="1" class="btn logout-btn" aria-label="Log out">
+                        🚪 Logout
+                    </button>
+                </form>
             </div>
         </header>
 
@@ -359,9 +436,13 @@ foreach ($orders as $order) {
                     </div>
                 <?php elseif (empty($orders)): ?>
                     <div class="table-message">
-                        <p>No orders yet. New orders will appear here.</p>
+                        <p>No orders on this page. Try searching or check another page.</p>
                     </div>
                 <?php else: ?>
+                    <div class="search-box">
+                        <input type="text" id="searchOrders" placeholder="🔍 Search by email, reference, or plan..." aria-label="Search orders">
+                    </div>
+                    
                     <div style="overflow-x: auto;">
                         <table>
                             <thead>
@@ -371,9 +452,10 @@ foreach ($orders as $order) {
                                     <th scope="col">Order Reference</th>
                                     <th scope="col">Plan</th>
                                     <th scope="col">E-transfer Reference</th>
+                                    <th scope="col">Status</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="ordersTableBody">
                                 <?php foreach ($orders as $order): ?>
                                     <tr>
                                         <td><?php echo htmlspecialchars($order['timestamp']); ?></td>
@@ -385,14 +467,51 @@ foreach ($orders as $order) {
                                         <td class="mono">
                                             <?php echo htmlspecialchars($order['etransfer_ref']); ?>
                                         </td>
+                                        <td>
+                                            <span style="color: <?php echo $order['status'] === 'pending' ? '#ffa500' : '#4CAF50'; ?>">
+                                                <?php echo htmlspecialchars(ucfirst($order['status'])); ?>
+                                            </span>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>
+                    
+                    <?php if ($totalPages > 1): ?>
+                    <div class="pagination">
+                        <?php if ($page > 1): ?>
+                            <a href="?page=<?php echo $page - 1; ?>">← Previous</a>
+                        <?php endif; ?>
+                        
+                        <span style="color: var(--text-gray);">
+                            Page <?php echo $page; ?> of <?php echo $totalPages; ?>
+                        </span>
+                        
+                        <?php if ($page < $totalPages): ?>
+                            <a href="?page=<?php echo $page + 1; ?>">Next →</a>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
                 <?php endif; ?>
             </section>
         </main>
     </div>
+
+    <script>
+        // Search functionality
+        const searchInput = document.getElementById('searchOrders');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                const search = e.target.value.toLowerCase();
+                const rows = document.querySelectorAll('#ordersTableBody tr');
+                
+                rows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = text.includes(search) ? '' : 'none';
+                });
+            });
+        }
+    </script>
 </body>
 </html>
