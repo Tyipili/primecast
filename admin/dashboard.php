@@ -1,160 +1,80 @@
 <?php
 /**
  * PrimeCast Admin Dashboard
- * Secure admin panel for viewing payments and statistics
+ * Simple order viewing interface
  */
 
-require_once __DIR__ . '/../php/functions.php';
-
-// Configure secure session cookies
-$isSecure = isSecure();
-
-$cookieOptions = [
-    'lifetime' => 0,
-    'path' => '/',
-    'domain' => '',
-    'secure' => $isSecure,
-    'httponly' => true,
-    'samesite' => 'Strict'
-];
-
-if (PHP_VERSION_ID >= 70300) {
-    session_set_cookie_params($cookieOptions);
-} else {
-    $path = $cookieOptions['path'] . '; samesite=' . $cookieOptions['samesite'];
-    session_set_cookie_params(
-        $cookieOptions['lifetime'],
-        $path,
-        $cookieOptions['domain'],
-        $cookieOptions['secure'],
-        $cookieOptions['httponly']
-    );
-}
-
+// Simple session management
 session_start();
 
-// Require admin authentication (includes timeout check)
-requireAdmin();
+// Check if user is logged in
+if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
+    header('Location: login.php');
+    exit;
+}
+
+// Session timeout (30 minutes)
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > 1800) {
+    session_destroy();
+    header('Location: login.php?timeout=1');
+    exit;
+}
+$_SESSION['last_activity'] = time();
 
 // Handle logout
 if (isset($_GET['logout'])) {
-    logSecurityEvent('ADMIN_LOGOUT', [
-        'username' => $_SESSION['admin_username'] ?? 'unknown',
-        'session_duration' => isset($_SESSION['login_time']) ? (time() - strtotime($_SESSION['login_time'])) : 0
-    ]);
-    
-    $_SESSION = [];
-    
-    if (ini_get('session.use_cookies')) {
-        $params = session_get_cookie_params();
-        
-        if (PHP_VERSION_ID >= 70300) {
-            setcookie(session_name(), '', [
-                'expires' => time() - 42000,
-                'path' => $params['path'] ?? '/',
-                'domain' => $params['domain'] ?? '',
-                'secure' => $params['secure'] ?? $isSecure,
-                'httponly' => $params['httponly'] ?? true,
-                'samesite' => $params['samesite'] ?? 'Strict'
-            ]);
-        } else {
-            $path = ($params['path'] ?? '/') . '; samesite=' . ($params['samesite'] ?? 'Strict');
-            setcookie(
-                session_name(),
-                '',
-                time() - 42000,
-                $path,
-                $params['domain'] ?? '',
-                $params['secure'] ?? $isSecure,
-                $params['httponly'] ?? true
-            );
-        }
-    }
-    
     session_destroy();
     header('Location: login.php');
     exit;
 }
 
-// Read payment log
-$logFile = STORAGE_PATH . '/payment_log.txt';
-$payments = [];
-$logError = '';
+// Read orders file
+$ordersFile = dirname(__DIR__) . '/storage/orders.txt';
+$orders = [];
+$error = '';
 
-if (!file_exists($logFile)) {
-    $logError = 'No payment log found. Payments will appear here once customers make purchases.';
-} elseif (!is_readable($logFile)) {
-    $logError = 'Payment log exists but cannot be read. Check file permissions.';
-    error_log("Payment log not readable: $logFile");
-} elseif (filesize($logFile) > 0) {
-    $logContent = file_get_contents($logFile);
-    
-    if ($logContent === false) {
-        $logError = 'Unable to read payment log contents.';
-        error_log("Failed to read payment log: $logFile");
+// Check if orders file exists
+if (!file_exists($ordersFile)) {
+    // This is normal - file is created when first order is submitted
+    $error = 'No orders yet. Orders will appear here once customers submit their information.';
+} elseif (!is_readable($ordersFile)) {
+    $error = 'Orders file exists but cannot be read. Check file permissions.';
+} elseif (filesize($ordersFile) > 0) {
+    $content = @file_get_contents($ordersFile);
+    if ($content === false) {
+        $error = 'Unable to read orders file.';
     } else {
-        $lines = explode("\n", trim($logContent));
-        
+        $lines = explode("\n", trim($content));
         foreach ($lines as $line) {
-            if ($line === '') {
-                continue;
-            }
+            if (empty($line)) continue;
             
-            // Parse log entry
-            // Format: [timestamp] Email: xxx | Plan: xxx | Reference: xxx | Transaction: xxx | Amount: $xxx | Method: xxx | Status: xxx
-            preg_match(
-                '/^\[(.*?)\]\s+Email:\s+(.*?)\s+\|\s+Plan:\s+(.*?)\s+\|\s+Reference:\s+(.*?)\s+\|\s+Transaction:\s+(.*?)\s+\|\s+Amount:\s+\$(.*?)\s+\|\s+Method:\s+(.*?)(?:\s+\|\s+Status:\s+(.*))?$/',
-                $line,
-                $matches
-            );
-            
-            if (count($matches) >= 8) {
-                $payments[] = [
-                    'timestamp' => $matches[1],
-                    'email' => $matches[2],
-                    'plan' => $matches[3],
-                    'reference' => $matches[4],
-                    'transaction' => $matches[5],
-                    'amount' => (float) $matches[6],
-                    'method' => $matches[7],
-                    'status' => $matches[8] ?? 'completed'
+            // Parse: timestamp | email | order_ref | plan | etransfer_ref
+            $parts = array_map('trim', explode('|', $line));
+            if (count($parts) === 5) {
+                $orders[] = [
+                    'timestamp' => $parts[0],
+                    'email' => $parts[1],
+                    'order_ref' => $parts[2],
+                    'plan' => $parts[3],
+                    'etransfer_ref' => $parts[4]
                 ];
             }
         }
-        
         // Reverse to show newest first
-        $payments = array_reverse($payments);
+        $orders = array_reverse($orders);
     }
 }
 
 // Calculate statistics
-$totalPayments = count($payments);
-$totalRevenue = array_sum(array_column($payments, 'amount'));
-$todayPayments = 0;
-$todayRevenue = 0;
+$totalOrders = count($orders);
+$todayOrders = 0;
 $today = date('Y-m-d');
 
-foreach ($payments as $payment) {
-    if (strpos($payment['timestamp'], $today) === 0) {
-        $todayPayments++;
-        $todayRevenue += floatval($payment['amount']);
+foreach ($orders as $order) {
+    if (strpos($order['timestamp'], $today) === 0) {
+        $todayOrders++;
     }
 }
-
-// Plan breakdown
-$planCounts = ['basic' => 0, 'standard' => 0, 'premium' => 0];
-foreach ($payments as $payment) {
-    $plan = strtolower($payment['plan']);
-    if (isset($planCounts[$plan])) {
-        $planCounts[$plan]++;
-    }
-}
-
-// Session info for display
-$sessionDuration = isset($_SESSION['last_activity']) 
-    ? (time() - $_SESSION['last_activity']) 
-    : 0;
-$remainingTime = SESSION_TIMEOUT - $sessionDuration;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -184,17 +104,7 @@ $remainingTime = SESSION_TIMEOUT - $sessionDuration;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         }
         
-        .admin-page-bg {
-            position: fixed;
-            inset: 0;
-            background: linear-gradient(120deg, rgba(0, 229, 255, 0.05), rgba(196, 155, 42, 0.05));
-            filter: blur(60px);
-            z-index: 0;
-        }
-        
         .admin-container {
-            position: relative;
-            z-index: 1;
             max-width: 1400px;
             margin: 0 auto;
             padding: 40px 20px 80px;
@@ -300,7 +210,7 @@ $remainingTime = SESSION_TIMEOUT - $sessionDuration;
             font-size: 1rem;
         }
         
-        .payments-table {
+        .orders-table {
             background: var(--card-surface);
             border-radius: 16px;
             border: 1px solid var(--border-soft);
@@ -338,9 +248,12 @@ $remainingTime = SESSION_TIMEOUT - $sessionDuration;
             color: var(--text-gray);
         }
         
-        .table-warning {
-            background: rgba(255, 165, 0, 0.08);
-            color: #ffb347;
+        .table-info {
+            background: rgba(0, 229, 255, 0.05);
+            border: 1px solid rgba(0, 229, 255, 0.2);
+            padding: 30px;
+            margin: 20px;
+            border-radius: 8px;
         }
         
         table {
@@ -376,33 +289,6 @@ $remainingTime = SESSION_TIMEOUT - $sessionDuration;
             color: var(--neon-blue);
         }
         
-        .amount {
-            color: var(--gold);
-            font-weight: 700;
-        }
-        
-        .method {
-            text-transform: uppercase;
-        }
-        
-        .status-badge {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
-        
-        .status-verified {
-            background: rgba(0, 255, 0, 0.2);
-            color: #00ff00;
-        }
-        
-        .session-timer {
-            font-size: 0.85rem;
-            color: var(--text-gray);
-            margin-left: 10px;
-        }
-        
         @media (max-width: 768px) {
             .admin-header {
                 flex-direction: column;
@@ -420,15 +306,13 @@ $remainingTime = SESSION_TIMEOUT - $sessionDuration;
     </style>
 </head>
 <body>
-    <div class="admin-page-bg"></div>
     <div class="admin-container">
         <header class="admin-header">
             <div>
                 <p class="eyebrow">PrimeCast Control Panel</p>
                 <h1>Admin Dashboard</h1>
                 <p class="welcome">
-                    Welcome, <?php echo htmlspecialchars($_SESSION['admin_username']); ?>
-                    <span class="session-timer" id="session-timer"></span>
+                    Welcome, <?php echo htmlspecialchars($_SESSION['admin_username'] ?? 'Admin'); ?>
                 </p>
             </div>
             <div class="actions">
@@ -443,44 +327,39 @@ $remainingTime = SESSION_TIMEOUT - $sessionDuration;
 
         <main role="main">
             <!-- Statistics Cards -->
-            <section class="stats-grid" aria-label="Payment statistics">
+            <section class="stats-grid" aria-label="Order statistics">
                 <article class="stat-card">
-                    <div class="stat-label">Total Payments</div>
-                    <div class="stat-value"><?php echo $totalPayments; ?></div>
+                    <div class="stat-label">Total Orders</div>
+                    <div class="stat-value"><?php echo $totalOrders; ?></div>
                 </article>
                 <article class="stat-card">
-                    <div class="stat-label">Total Revenue</div>
-                    <div class="stat-value">$<?php echo number_format($totalRevenue, 2); ?></div>
-                </article>
-                <article class="stat-card">
-                    <div class="stat-label">Today's Payments</div>
-                    <div class="stat-value"><?php echo $todayPayments; ?></div>
-                </article>
-                <article class="stat-card">
-                    <div class="stat-label">Today's Revenue</div>
-                    <div class="stat-value">$<?php echo number_format($todayRevenue, 2); ?></div>
+                    <div class="stat-label">Today's Orders</div>
+                    <div class="stat-value"><?php echo $todayOrders; ?></div>
                 </article>
             </section>
 
-            <!-- Payments Table -->
-            <section class="payments-table" aria-label="Recent payments">
+            <!-- Orders Table -->
+            <section class="orders-table" aria-label="Recent orders">
                 <div class="table-heading">
                     <div>
-                        <p class="eyebrow">Transactions</p>
-                        <h2>Recent Payments</h2>
+                        <p class="eyebrow">Order Management</p>
+                        <h2>Recent Orders</h2>
                     </div>
                     <div>
                         <span class="badge">🔒 Secure Area</span>
                     </div>
                 </div>
 
-                <?php if ($logError): ?>
-                    <div class="table-message table-warning">
-                        <p><?php echo htmlspecialchars($logError); ?></p>
+                <?php if ($error): ?>
+                    <div class="table-info">
+                        <p style="margin: 0;"><?php echo htmlspecialchars($error); ?></p>
+                        <p style="margin-top: 15px; font-size: 0.9rem;">
+                            When customers complete the checkout form, their orders will appear here automatically.
+                        </p>
                     </div>
-                <?php elseif (empty($payments)): ?>
+                <?php elseif (empty($orders)): ?>
                     <div class="table-message">
-                        <p>No payments recorded yet. New orders will appear here.</p>
+                        <p>No orders yet. New orders will appear here.</p>
                     </div>
                 <?php else: ?>
                     <div style="overflow-x: auto;">
@@ -489,30 +368,22 @@ $remainingTime = SESSION_TIMEOUT - $sessionDuration;
                                 <tr>
                                     <th scope="col">Date &amp; Time</th>
                                     <th scope="col">Email</th>
+                                    <th scope="col">Order Reference</th>
                                     <th scope="col">Plan</th>
-                                    <th scope="col">Reference</th>
-                                    <th scope="col">Transaction ID</th>
-                                    <th scope="col">Amount</th>
-                                    <th scope="col">Method</th>
-                                    <th scope="col">Status</th>
+                                    <th scope="col">E-transfer Reference</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($payments as $payment): ?>
+                                <?php foreach ($orders as $order): ?>
                                     <tr>
-                                        <td><?php echo htmlspecialchars($payment['timestamp']); ?></td>
-                                        <td><?php echo htmlspecialchars($payment['email']); ?></td>
-                                        <td><?php echo htmlspecialchars(ucfirst($payment['plan'])); ?></td>
+                                        <td><?php echo htmlspecialchars($order['timestamp']); ?></td>
+                                        <td><?php echo htmlspecialchars($order['email']); ?></td>
                                         <td class="mono highlight">
-                                            <?php echo htmlspecialchars($payment['reference']); ?>
+                                            <?php echo htmlspecialchars($order['order_ref']); ?>
                                         </td>
-                                        <td class="mono"><?php echo htmlspecialchars($payment['transaction']); ?></td>
-                                        <td class="amount">$<?php echo number_format($payment['amount'], 2); ?></td>
-                                        <td class="method"><?php echo htmlspecialchars($payment['method']); ?></td>
-                                        <td>
-                                            <span class="status-badge status-verified">
-                                                <?php echo htmlspecialchars(ucfirst($payment['status'])); ?>
-                                            </span>
+                                        <td><?php echo htmlspecialchars($order['plan']); ?></td>
+                                        <td class="mono">
+                                            <?php echo htmlspecialchars($order['etransfer_ref']); ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -523,36 +394,5 @@ $remainingTime = SESSION_TIMEOUT - $sessionDuration;
             </section>
         </main>
     </div>
-
-    <script>
-        // Session timeout timer
-        const sessionTimeout = <?php echo SESSION_TIMEOUT; ?>;
-        const startTime = Date.now();
-        
-        function updateTimer() {
-            const elapsed = Math.floor((Date.now() - startTime) / 1000);
-            const remaining = sessionTimeout - elapsed;
-            
-            if (remaining <= 0) {
-                window.location.href = 'login.php?timeout=1';
-                return;
-            }
-            
-            const minutes = Math.floor(remaining / 60);
-            const seconds = remaining % 60;
-            
-            const timerElement = document.getElementById('session-timer');
-            if (timerElement) {
-                timerElement.textContent = `(Session expires in ${minutes}:${seconds.toString().padStart(2, '0')})`;
-                
-                if (remaining < 300) { // 5 minutes
-                    timerElement.style.color = '#ff6b6b';
-                }
-            }
-        }
-        
-        setInterval(updateTimer, 1000);
-        updateTimer();
-    </script>
 </body>
 </html>
